@@ -11,7 +11,7 @@ const Login = () => {
   const actionCodeSettings = {
       // URL you want to redirect back to. The domain (www.example.com) for this
       // URL must be in the authorized domains list in the Firebase Console.
-      url: 'https://strava-ukc.web.app',
+      url: 'https://strava-ukc.web.app/completelogin',
       // This must be true.
       handleCodeInApp: true,
     };

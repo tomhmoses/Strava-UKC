@@ -3,6 +3,7 @@ import { Route, createBrowserRouter, createRoutesFromElements, RouterProvider } 
 import Home from './pages/Home';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import CompleteLogin from './pages/auth/CompleteLogin';
 import Header from './components/nav/Header';
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
@@ -32,6 +33,7 @@ const router = createBrowserRouter(
     <Route path="/" element={<Header />}>
       <Route index element={<Home />} />
       <Route path="login" element={<Login />} />
+      <Route path="completelogin" element={<CompleteLogin />} />
       <Route path="register" element={<Register />} />
       <Route path="*" element={<h1>Not Found</h1>} />
     </Route>
