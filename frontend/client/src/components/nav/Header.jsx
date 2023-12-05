@@ -2,6 +2,10 @@ import { HomeTwoTone, EditTwoTone, CheckCircleTwoTone } from '@ant-design/icons'
 import { Menu } from 'antd';
 import { useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
+// use auth from firebase
+import { getAuth, signOut } from "firebase/auth";
+import { useAuthState } from 'react-firebase-hooks/auth';
+
 
 
 const Header = () => {
@@ -10,18 +14,31 @@ const Header = () => {
     console.log('click ', e);
     setCurrent(e.key);
   };
+
+  const logout = () => {
+    signOut(auth);
+  };
+
+  const auth = getAuth();
+  const [user, loading, error] = useAuthState(auth);
+
+
   return (
     <>
      <Menu onClick={onClick} selectedKeys={[current]} mode="horizontal">
       <Menu.Item key="h" icon= {<HomeTwoTone />}>
        <Link to="/">Home</Link>
       </Menu.Item>
-      <Menu.Item key="r" icon= {<EditTwoTone />}>
-        <Link to="/register">Register</Link>
-      </Menu.Item>
-      <Menu.Item key="l" icon= {<CheckCircleTwoTone />}>
-        <Link to="/login">Login</Link>
-      </Menu.Item>
+      {!loading && !error && !user &&
+        <Menu.Item key="l" icon= {<CheckCircleTwoTone />}>
+          <Link to="/login">Login</Link>
+        </Menu.Item>
+      }
+      {!loading && !error && user &&
+        <Menu.Item key="l" icon= {<CheckCircleTwoTone />} onClick={logout}>
+          Logout
+        </Menu.Item>
+      }
      </Menu>
      <Outlet/>
     </>
