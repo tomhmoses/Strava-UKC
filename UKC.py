@@ -162,7 +162,7 @@ def upload_activity_with_retry(form_data):
 
 def get_example_form_data():
     return {
-        'name': 'Morning Run 15',
+        'name': 'Morning Run 17',
         'activity': '4',
         'subactivity': '0',
         'timeslot': '1',
