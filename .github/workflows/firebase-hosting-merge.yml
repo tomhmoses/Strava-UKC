@@ -21,3 +21,4 @@ jobs:
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_STRAVA_UKC }}'
           channelId: live
           projectId: strava-ukc
+          entryPoint: "./frontend/"
