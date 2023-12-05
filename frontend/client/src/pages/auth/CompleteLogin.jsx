@@ -1,7 +1,12 @@
 import React from 'react';
 import { getAuth, isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
+
 
 export default function CompleteLogin() {
+
+  const navigate = useNavigate();
+
   // Confirm the link is a sign-in with email link.
   const auth = getAuth();
   if (isSignInWithEmailLink(auth, window.location.href)) {
@@ -27,6 +32,7 @@ export default function CompleteLogin() {
         // You can check if the user is new or existing:
         // result.additionalUserInfo.isNewUser
         console.log(result)
+        navigate("/");
       })
       .catch((error) => {
         // Some error occurred, you can inspect the code: error.code
@@ -37,7 +43,7 @@ export default function CompleteLogin() {
 
   return (
     <div>
-      <h1>Complete Login</h1>
+      <h1>Logging in...</h1>
     </div>
   )
 }
