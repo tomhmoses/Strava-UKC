@@ -36,7 +36,7 @@ const Header = () => {
       }
       {!loading && !error && user &&
         <Menu.Item key="l" icon= {<CheckCircleTwoTone />} onClick={logout}>
-          Logout
+          <Link to="/">Logout</Link>
         </Menu.Item>
       }
      </Menu>
