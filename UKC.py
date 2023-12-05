@@ -9,19 +9,31 @@ url_submit = 'https://www.ukclimbing.com/logbook/adddiary.php'
 url_login = 'https://www.ukclimbing.com/logbook/cragadd.php'
 
 # File to store the most recent auth code
-auth_code_file = 'auth_code.txt'
+auth_code_file = 'files/auth_code.txt'
 # File to UKC user password
-auth_code_file = 'password.txt'
+password_file = 'files/password.txt'
+# KML example file
+kml_file = 'files/example.kml'
+
+def example_kml():
+    if os.path.exists(kml_file):
+        # Read the most recent auth code from the file
+        with open(kml_file, 'r') as file:
+            return file.read().strip()
+    else:
+        raise Exception("Password file not found.")
 
 # Credentials for logging in
 def get_username():
     return 'tomhmoses'
 
 def get_password():
-    if os.path.exists(auth_code_file):
+    if os.path.exists(password_file):
         # Read the most recent auth code from the file
-        with open(auth_code_file, 'r') as file:
+        with open(password_file, 'r') as file:
             return file.read().strip()
+    else:
+        raise Exception("Password file not found.")
 
 def get_new_auth_code():
     # Specify the login endpoint
@@ -41,17 +53,27 @@ def get_new_auth_code():
     # set referrer poicy to origin-when-cross-origin
     session.headers.update({'Referrer-Policy': 'origin-when-cross-origin'})
     session.cookies.update({'ukc_test': 'test'})
+    session.cookies.update({'session_login': '1'})
 
     # Send a POST request to log in
     response = session.post(login_url, data=login_data, allow_redirects=True)
+    # Save response html content to file
+    # with open('login_response.html', 'w') as file:
+    #     file.write(response.text)
     # print(f"Response status code: {response.status_code}")
-    # Parse the HTML content of the response
+    # # Parse the HTML content of the response
     # soup = BeautifulSoup(response.content, 'html.parser')
-    # Extract and print the page title
+    # # Extract and print the page title
     # page_title = soup.title.string if soup.title else 'No title found'
     # print(f"Page Title: {page_title}")
     # # print(session cookies)
     # print(f"Session cookies: {session.cookies}")
+
+    wrong_password_text = 'The password or username/email you entered is invalid'
+    if wrong_password_text in response.text:
+        print("Wrong password entered.")
+        # throw exception
+        raise Exception("Wrong password entered.")
     
     # Loop through cookies to find one that has ukcsid
     for cookie in session.cookies:
@@ -61,6 +83,10 @@ def get_new_auth_code():
             with open(auth_code_file, 'w') as file:
                 file.write(cookie.value)
             return cookie.value
+        
+    # If no ukcsid cookie was found, return None
+    print("No ukcsid cookie found.")
+    raise Exception("Login failed.")
 
 def submit_activity(auth_code, form_data):
     # Authentication cookie
@@ -85,6 +111,13 @@ def get_auth_code():
         auth_code = get_new_auth_code()
     return auth_code
 
+def get_page_title(response):
+    # Parse the HTML content of the response
+    soup = BeautifulSoup(response.content, 'html.parser')
+    # Extract and print the page title
+    page_title = soup.title.string if soup.title else 'No title found'
+    return page_title
+
 def upload_activity_with_retry(form_data):
     auth_code = get_auth_code()
     # Send the activity submission request
@@ -92,11 +125,8 @@ def upload_activity_with_retry(form_data):
 
     # Check the response
     if response.status_code == 200:
-        # Parse the HTML content of the response
-        soup = BeautifulSoup(response.content, 'html.parser')
-
         # Extract and print the page title
-        page_title = soup.title.string if soup.title else 'No title found'
+        page_title = get_page_title(response)
         print(f"Page Title: {page_title}")
 
         # Check if auth didn't work
@@ -112,8 +142,12 @@ def upload_activity_with_retry(form_data):
             response_after_retry = submit_activity(auth_code, form_data)
 
             # Check the response after retry
-            if response_after_retry.status_code == 200:
+            if 'Login' in get_page_title(response_after_retry):
+                print("Login failed a 2nd time. Error submitting activity.")
+                raise Exception("Login failed a 2nd time. Error submitting activity.")
+            elif response_after_retry.status_code == 200:
                 print("Activity submitted successfully after retry.")
+                print(f"Page Title: {get_page_title(response_after_retry)}")
             else:
                 print(f"Error submitting activity after retry. Status code: {response_after_retry.status_code}")
                 print(response_after_retry.text)
@@ -125,7 +159,7 @@ def upload_activity_with_retry(form_data):
 
 def get_example_form_data():
     return {
-        'name': 'Morning Run 10',
+        'name': 'Morning Run 12',
         'activity': '4',
         'subactivity': '0',
         'timeslot': '1',
@@ -148,8 +182,32 @@ def get_example_form_data():
         'extra[9]': '', # Elevation gain (meters)
         'extra[1040]': 'a', # Link to activity
         'update': 'Add entry',
-        'kml': '',
+        'kml': example_kml(),
+        # 'id': '', # Activity ID to update an existing activity
+        # 'delete': 'Delete from diary', # Delete an existing activity, must be used with id
     }
+
+def activity_type(name):
+    mapping = {
+        'Indoor climbing': {'activity': '1', 'subactivity': 0},
+        'Indoor climbing - Bouldering': {'activity': '1', 'subactivity': 3},
+        'Indoor climbing - Routes': {'activity': '1', 'subactivity': 4},
+        'Outdoor climbing': {'activity': '2', 'subactivity': 0},
+        'Road running': {'activity': '3', 'subactivity': 0},
+        'Trail running': {'activity': '4', 'subactivity': 0},
+        'Walking': {'activity': '5', 'subactivity': 0},
+        'Road biking': {'activity': '6', 'subactivity': 0},
+        'Mountain biking': {'activity': '7', 'subactivity': 0},
+        'Swimming': {'activity': '8', 'subactivity': 0},
+        'Rowing': {'activity': '9', 'subactivity': 0},
+        'Weights': {'activity': '10', 'subactivity': 0},
+        'Exercise class': {'activity': '11', 'subactivity': 0},
+        'Pilates': {'activity': '11', 'subactivity': 1},
+        'Yoga': {'activity': '11', 'subactivity': 2},
+        'Stretching': {'activity': '12', 'subactivity': 0},
+        'Notes': {'activity': '14', 'subactivity': 0},
+    }
+    return mapping[name]
 
 def main():
     # Form post data extracted from the URL
@@ -159,4 +217,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # get_auth_code()
