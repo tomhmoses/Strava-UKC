@@ -2,6 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import os
 from http.cookies import SimpleCookie
+from gpx_to_kml import gpx_to_UKC_kml
 
 # URL of the form submission endpoint
 url_submit = 'https://www.ukclimbing.com/logbook/adddiary.php'
@@ -13,7 +14,9 @@ auth_code_file = 'files/auth_code.txt'
 # File to UKC user password
 password_file = 'files/password.txt'
 # KML example file
-kml_file = 'files/example.kml'
+kml_file = 'files/example_kml.txt'
+# GPX example file
+gpx_file = 'run.gpx'
 
 def example_kml():
     if os.path.exists(kml_file):
@@ -159,7 +162,7 @@ def upload_activity_with_retry(form_data):
 
 def get_example_form_data():
     return {
-        'name': 'Morning Run 12',
+        'name': 'Morning Run 15',
         'activity': '4',
         'subactivity': '0',
         'timeslot': '1',
@@ -176,16 +179,23 @@ def get_example_form_data():
         'extra[3]': '', # Body fat (%)
         'extra[4]': '376', # Calories
         'extra[5]': '', # Cadence (average per minute)
-        'extra[6]': 'Shoes Here', # Shoes
+        'extra[6]': 'Scarpa Ribelle Run', # Shoes
         'extra[7]': '', # Laps
         'extra[8]': '', # Intensity (1-5)
         'extra[9]': '', # Elevation gain (meters)
         'extra[1040]': 'a', # Link to activity
         'update': 'Add entry',
-        'kml': example_kml(),
+        'kml': get_kml(gpx_file),
         # 'id': '', # Activity ID to update an existing activity
         # 'delete': 'Delete from diary', # Delete an existing activity, must be used with id
     }
+
+def get_kml(gpx_file):
+    # Read the GPX file
+    gpx_data = open(gpx_file, 'r').read()
+    # Convert GPX to KML
+    kml_data = gpx_to_UKC_kml(gpx_data)
+    return kml_data
 
 def activity_type(name):
     mapping = {
