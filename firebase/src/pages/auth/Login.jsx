@@ -2,11 +2,16 @@ import React, {useState} from 'react'
 import { getAuth, sendSignInLinkToEmail } from "firebase/auth";
 import { UserOutlined } from '@ant-design/icons';
 import { Input, Button } from 'antd';
+import { useNavigate } from "react-router-dom";
 
 
 const Login = () => {
 
-  const [email, setEmail] = useState('');
+  const defaultEmail = window.localStorage.getItem('emailForSignIn') || '';
+
+  const [email, setEmail] = useState(defaultEmail);
+
+  const navigate = useNavigate();
 
   const actionCodeSettings = {
       // URL you want to redirect back to. The domain (www.example.com) for this
@@ -25,12 +30,12 @@ const Login = () => {
         // Save the email locally so you don't need to ask the user for it again
         // if they open the link on the same device.
         window.localStorage.setItem('emailForSignIn', email);
-        // ...
+        // ask user to check email for link
+        alert("Please check your email for the link to log in")
+        navigate("/");
       })
       .catch((error) => {
-        const errorCode = error.code;
-        const errorMessage = error.message;
-        // ...
+        console.log(error);
       });
     } else {
       alert("Please enter an email address")
