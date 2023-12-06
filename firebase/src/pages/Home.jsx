@@ -13,9 +13,6 @@ const Home = (props) => {
   const auth = getAuth();
   const [user, loading, error] = useAuthState(auth);
 
-  const userRef = doc(props.firestore, "users", user.uid);
-  const [data] = useDocumentData(userRef);
-
   if (loading) {
     return <div>Loading...</div>;
   }
