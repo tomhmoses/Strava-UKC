@@ -101,7 +101,24 @@ def submit_activity(auth_code, form_data):
 
     # Send a POST request with the session
     response = session.post(url_submit, data=form_data)
+    # Save response html content to file
+    with open('submit_response.html', 'w') as file:
+        file.write(response.text)
+
     return response
+
+def get_activity_id(response):
+    # this is within <a href="adddiary.php?id=726080">Edit entry</a>
+    # Parse the HTML content of the response
+    soup = BeautifulSoup(response.content, 'html.parser')
+    # Extract and print the page title
+    page_title = soup.title.string if soup.title else 'No title found'
+    print(f"Page Title: {page_title}")
+    # print(soup.find_all('a'))
+    for link in soup.find_all('a'):
+        if 'Edit entry' in link.text:
+            return link['href'].split('=')[1]
+    return None
 
 def get_auth_code():
     # Check if the auth code file exists
@@ -151,11 +168,13 @@ def upload_activity_with_retry(form_data):
             elif response_after_retry.status_code == 200:
                 print("Activity submitted successfully after retry.")
                 print(f"Page Title: {get_page_title(response_after_retry)}")
+                return get_activity_id(response_after_retry)
             else:
                 print(f"Error submitting activity after retry. Status code: {response_after_retry.status_code}")
                 print(response_after_retry.text)
         else:
             print("Activity submitted successfully.")
+            return get_activity_id(response)
     else:
         print(f"Error submitting activity. Status code: {response.status_code}")
         print(response.text)
@@ -223,7 +242,8 @@ def main():
     # Form post data extracted from the URL
     form_data = get_example_form_data()
 
-    upload_activity_with_retry(form_data)
+    activity_id = upload_activity_with_retry(form_data)
+    print(f"Activity ID: {activity_id}")
 
 if __name__ == "__main__":
     main()
