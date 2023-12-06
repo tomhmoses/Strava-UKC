@@ -1,8 +1,6 @@
 import React from 'react';
 import { Route, createBrowserRouter, createRoutesFromElements, RouterProvider } from 'react-router-dom';
 import Home from './pages/Home';
-import Login from './pages/auth/Login';
-import Register from './pages/auth/Register';
 import CompleteLogin from './pages/auth/CompleteLogin';
 import Header from './components/nav/Header';
 // Import the functions you need from the SDKs you need
@@ -34,9 +32,7 @@ const router = createBrowserRouter(
   createRoutesFromElements(
     <Route path="/" element={<Header />}>
       <Route index element={<Home firestore={firestore} />} />
-      <Route path="login" element={<Login />} />
       <Route path="completelogin" element={<CompleteLogin />} />
-      <Route path="register" element={<Register />} />
       <Route path="*" element={<h1>Not Found</h1>} />
     </Route>
   )

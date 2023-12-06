@@ -31,7 +31,7 @@ const Header = () => {
       </Menu.Item>
       {!loading && !error && !user &&
         <Menu.Item key="l" icon= {<CheckCircleTwoTone />}>
-          <Link to="/login">Login</Link>
+          <Link to="/api/authorize_strava">Login</Link>
         </Menu.Item>
       }
       {!loading && !error && user &&

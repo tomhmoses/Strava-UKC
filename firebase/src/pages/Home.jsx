@@ -26,7 +26,7 @@ const Home = (props) => {
   }
   return (
     <>
-      <Title level={3}>Please Log In</Title>
+      <Title level={3}>Please <a href="/api/authorize_strava">Log In</a></Title>
     </>
   )
 }

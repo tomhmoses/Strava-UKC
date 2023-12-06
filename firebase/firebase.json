@@ -32,6 +32,14 @@
         "function": "addmessage"
       },
       {
+        "source": "/api/authorize_strava",
+        "function": "authorize_strava"
+      },
+      {
+        "source": "/api/verify_authorization",
+        "function": "verify_authorization"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
