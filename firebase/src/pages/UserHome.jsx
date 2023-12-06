@@ -1,9 +1,9 @@
 import React from 'react'
-import { Typography, Paragraph } from 'antd';
+import { Typography } from 'antd';
 import { doc } from 'firebase/firestore';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
 
-const { Title } = Typography;
+const { Title, Paragraph } = Typography;
 
 const UserHome = (props) => {
 
