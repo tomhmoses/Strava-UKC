@@ -104,7 +104,7 @@ def verify_authorization(request):
     #http://localhost/?state=&code=270cad31929190f0f41608aa3a5e16c89629d43a&scope=read,activity:read_all
     strava_request = requests.post(
         "https://www.strava.com/oauth/token",
-        data={
+        json={
             "client_id": getenv("STRAVA_CLIENT_ID"),
             "client_secret": getenv("STRAVA_CLIENT_SECRET"),
             "code": code,
@@ -122,7 +122,7 @@ def verify_authorization(request):
     updateAthleteAuthInFirestore(access_token,refresh_token,expires_at,athleteID)
 
     # generate firebase login token
-    firebase_token = auth.create_custom_token(athleteID)
+    firebase_token = auth.create_custom_token(str(athleteID))
     firebase_token_str = str(firebase_token)
     #could make this conversion better. Taking off first 2 chars, and last char.
     firebase_token_str = firebase_token_str[2:-1]
