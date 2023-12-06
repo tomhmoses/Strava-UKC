@@ -14,9 +14,13 @@ const UserHome = (props) => {
     <>
     <Title level={1}>Home</Title>
     <Title level={3}>Welcome {props.user.email}</Title>
-    {data.stravaId && <Title level={3}>Your Strava ID is {data.stravaId}</Title>}
-    {data && !data.stravaId && <Title level={3}>Please link your Strava account</Title>}
     {!data && <Title level={3}>Loading account data...</Title>}
+    {data &&
+      <>
+        {!data.stravaId && <Title level={3}>Please link your Strava account</Title>}
+        {data.stravaId && <Title level={3}>Your Strava ID is {data.stravaId}</Title>}
+      </>
+    }
     </>
   )
 }
