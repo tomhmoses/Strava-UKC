@@ -12,7 +12,9 @@ const Home = (props) => {
   const auth = getAuth();
   const [user, loading, error] = useAuthState(auth);
 
-  const userRef = doc(props.firestore, "users", user.uid);
+  const uid = user && user.uid || null;
+
+  const userRef = doc(props.firestore, "users", uid);
   const [data] = useDocumentData(userRef);
 
   if (loading) {
