@@ -2,8 +2,6 @@
 # Deploy with `firebase deploy`
 from firebase_functions import firestore_fn, https_fn
 from flask import Response, json
-from flask_httpauth import HTTPBasicAuth
-from werkzeug.security import generate_password_hash, check_password_hash
 
 # The Firebase Admin SDK to access Cloud Firestore.
 from firebase_admin import initialize_app, firestore
@@ -12,30 +10,23 @@ from os import getenv
 
 app = initialize_app()
 
-auth = HTTPBasicAuth()
-users = {}
-if (getenv("Strava-Auth-Password")):
-    users["strava"] = generate_password_hash(getenv("Strava-Auth-Password"))
-
-@auth.verify_password
-def verify_password(username, password):
-    if username in users and \
-            check_password_hash(users.get(username), password):
-        return username
-
-@https_fn.on_request()
-@auth.login_required
+@https_fn.on_request(secrets=["Strava-Verify-Token", "Strava-Auth-Password"])
 def callback(req: https_fn.Request) -> https_fn.Response:
+    auth = req.authorization
+    if auth is None or auth.username != "strava" or auth.password != getenv("Strava-Auth-Password"):
+        return https_fn.Response("Unauthorized Access", status=401)
     if req.method == "GET" and req.args.get("hub.mode") == "subscribe" and req.args.get("hub.challenge"):
         return hub_challenge(req)
     elif req.method == "POST":
         data=req.json
+        if "object_type" not in data:
+            return https_fn.Response("Unexpected Request. (Object Type not present)", status=400)
         if data["object_type"] == "activity":
             return activity(req)
         elif data["object_type"] == "athlete":
             return athlete(req)
         else:
-            return https_fn.Response("Unexpected Request.", status=400)
+            return https_fn.Response("Unexpected Request. (Unknown Object Type)", status=400)
     else:
         return https_fn.Response("Unexpected Request.", status=400)
     
@@ -52,6 +43,8 @@ def activity(req: https_fn.Request) -> https_fn.Response:
     # store activity update in firestore
     firestore_client: google.cloud.firestore.Client = firestore.client()
     data=req.json
+    data["update_received_date"] = firestore.SERVER_TIMESTAMP
+    data["update_status"] = "new"
     firestore_client.collection("activity-updates").add(data)
     return https_fn.Response("Activity update received.", status=200)
 
@@ -60,6 +53,8 @@ def athlete(req: https_fn.Request) -> https_fn.Response:
     # store athlete update in firestore
     firestore_client: google.cloud.firestore.Client = firestore.client()
     data=req.json
+    data["update_received_date"] = firestore.SERVER_TIMESTAMP
+    data["update_status"] = "new"
     firestore_client.collection("athlete-updates").add(data)
     return https_fn.Response("Athlete update received.", status=200)
 
