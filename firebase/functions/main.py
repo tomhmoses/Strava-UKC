@@ -217,7 +217,7 @@ def update_entry(firestore_client, data, uid, visibility):
         return create_entry(firestore_client, data, uid, visibility)
     activity_data = activity_doc.to_dict()
     UKC_id = activity_data.get("UKC_id")
-    return upload_entry_to_UKC(firestore_client, data, uid, UKC_id, visibility)
+    return upload_entry_to_UKC(firestore_client, data, uid, visibility, UKC_id)
 
 def delete_entry(firestore_client, data, uid, visibility):
     # Check if activity is already in firestore
@@ -228,7 +228,7 @@ def delete_entry(firestore_client, data, uid, visibility):
         return 'success', 'We have not uploaded this activity to UKC before'
     activity_data = activity_doc.to_dict()
     UKC_id = activity_data.get("UKC_id")
-    return upload_entry_to_UKC(firestore_client, data, uid, UKC_id, visibility, delete=True)
+    return upload_entry_to_UKC(firestore_client, data, uid, visibility, UKC_id, delete=True)
 
 def should_upload_to_UKC(auto_upload_visibility, activity_visibility):
     # activity visibility can be 'everyone', 'followers_only', 'only_me'
@@ -351,7 +351,6 @@ def analyse_upload_response(response):
 
 def get_UKC_auth_code(firestore_client, uid):
     # Check if the auth code file exists
-    # TODO: get auth from firestore
     athlete_ref = firestore_client.collection(u'users').document(str(uid))
     auth_ref = athlete_ref.collection(u'private').document(u'UKC_auth')
     auth = auth_ref.get().to_dict()
