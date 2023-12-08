@@ -89,7 +89,7 @@ def authorize_strava(req: https_fn.Request) -> https_fn.Response:
         "redirect_uri": "https://strava-ukc.web.app/api/verify_authorization",
         "response_type": "code",
         "approval_prompt": "auto",
-        "scope": "read,activity:read_all"
+        "scope": "read,activity:read"
     }
     url = "https://www.strava.com/oauth/authorize?" + urllib.parse.urlencode(params)
     return redirect(url)
@@ -102,9 +102,9 @@ def verify_authorization(request):
     if not code:
         return Response("Error: Missing code param", status=400)
     scope = request.args.get("scope")
-    if "activity:read_all" not in scope or "read" not in scope:
-        return Response("Sorry. You need to give Activity Read All permission to get activities to upload to UKC.", status=400)
-        # TODO: upade this so users can give just read permission so only public activities are uploaded
+    if "activity:read" not in scope or "read" not in scope:
+        return Response("Sorry. You need to give Activity Read permission to get activities to upload public activities to UKC.", status=400)
+        # TODO: upade this so users can give read all activities permission
 
     strava_request = requests.post(
         "https://www.strava.com/oauth/token",
@@ -139,6 +139,7 @@ def verify_authorization(request):
     return redirect(front_end_url)
 
 def updateAthleteInFirestore(athlete):
+    print('athlete', athlete)
     db = firestore.client()
     athlete_ref = db.collection(u'users').document(str(athlete["id"]))
     athlete_ref.set({
@@ -197,16 +198,10 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
         status = 'error'
         error = 'aspect_type not create, update or delete'
 
-    if status == 'success':
-        # set update_status to success
-        update_ref.set({
-            u'update_status': 'success',
-        }, merge=True)
-    else:
-        update_ref.set({
-            u'update_status': status,
-            u'update_error': error,
-        }, merge=True)
+    update_ref.set({
+        u'update_status': status,
+        u'update_message': error,
+    }, merge=True)
 
 
 def create_entry(firestore_client, data, uid):
@@ -218,8 +213,7 @@ def update_entry(firestore_client, data, uid):
     activity_ref = firestore_client.collection(u'users').document(str(uid)).collection(u'activities').document(str(activity_id))
     activity_doc = activity_ref.get()
     if not activity_doc.exists:
-        create_entry(firestore_client, data, uid)
-        return
+        return create_entry(firestore_client, data, uid)
     activity_data = activity_doc.to_dict()
     UKC_id = activity_data.get("UKC_id")
     return upload_entry_to_UKC(firestore_client, data, uid, UKC_id)
@@ -230,23 +224,27 @@ def delete_entry(firestore_client, data, uid):
     activity_ref = firestore_client.collection(u'users').document(str(uid)).collection(u'activities').document(str(activity_id))
     activity_doc = activity_ref.get()
     if not activity_doc.exists:
-        return
+        return 'success', 'We have not uploaded this activity to UKC before'
     activity_data = activity_doc.to_dict()
     UKC_id = activity_data.get("UKC_id")
     return upload_entry_to_UKC(firestore_client, data, uid, UKC_id, delete=True)
     
 def upload_entry_to_UKC(firestore_client, data, uid, UKC_id=None, delete=False):
     form_data = {}
+    if not delete:
+        form_data = get_form_data_for_activity(firestore_client, data, uid)
+        if form_data is None and UKC_id is None:
+            return 'success', 'Activity is private and not previously uploaded to UKC'
+        elif form_data is None:
+            delete = True
+        elif UKC_id:
+            form_data['id'] = UKC_id
+            form_data['update'] = 'Update entry'
     if delete:
         form_data = {
             'id': UKC_id,
             'delete': 'Delete from diary',
         }
-    else:
-        form_data = get_form_data_for_activity(firestore_client, data, uid)
-        if UKC_id:
-            form_data['id'] = UKC_id
-            form_data['update'] = 'Update entry'
     print('form_data', form_data)
     # first try with existing auth code
     auth_code = get_UKC_auth_code(firestore_client, uid)
@@ -298,11 +296,12 @@ def upload_entry_to_UKC(firestore_client, data, uid, UKC_id=None, delete=False):
         activity_ref = firestore_client.collection(u'users').document(str(uid)).collection(u'activities').document(str(activity_id))
         if delete:
             activity_ref.delete()
+            return 'success', 'Activity deleted from UKC'
         else:
             activity_ref.set({
                 u'UKC_id': UKC_id,
             }, merge=True)
-        return 'success', None
+        return 'success', 'Activity updated in UKC'
     else:
         return 'error', 'No UKC_id returned'
     
@@ -327,6 +326,9 @@ def analyse_upload_response(response):
     # search for text within a div with class alert-danger
     for div in soup.find_all('div', class_='alert-danger'):
         return {'status':'error','error':div.text.strip()}
+    # check if entry was deleted "Deleted that entry from your diary"
+    if 'Deleted that entry from your diary' in response.text:
+        return {'status':'success','id':None}
     return {'status':'error','error':'Unknown error'}
 
 def get_UKC_auth_code(firestore_client, uid):
@@ -417,6 +419,8 @@ def send_entry_to_UKC(auth_code, form_data):
 def get_form_data_for_activity(firestore_client, data, uid):
     activity_id = data.get("object_id")
     activity = get_activity_from_strava(firestore_client, uid, activity_id)
+    if activity is None:
+        return None
     # print('activity', activity)
     entry_type = map_type(activity["sport_type"], activity["distance"])
     start_time = datetime.strptime(activity["start_date_local"], "%Y-%m-%dT%H:%M:%SZ")
@@ -533,6 +537,9 @@ def get_activity_from_strava(firestore_client, athleteID, activityID):
             "access_token": access_token,
         }
     )
+    # if status is 404, then activity is private, so do nothing
+    if strava_request.status_code == 404:
+        return
     strava_request.raise_for_status()
     return strava_request.json()
     
