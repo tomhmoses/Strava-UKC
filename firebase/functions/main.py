@@ -14,6 +14,14 @@ from os import getenv
 
 app = initialize_app()
 
+#############################
+#############################
+#                           #
+# Strava Webhook            #
+#                           #
+#############################
+#############################
+
 @https_fn.on_request(
         secrets=["Strava-Verify-Token", "Strava-Auth-Password"],
         region="europe-west2")
@@ -63,22 +71,14 @@ def athlete(req: https_fn.Request) -> https_fn.Response:
     firestore_client.collection("athlete-updates").add(data)
     return https_fn.Response("Athlete update received.", status=200)
 
-@https_fn.on_request(region="europe-north1")
-def addmessage(req: https_fn.Request) -> https_fn.Response:
-    """Take the text parameter passed to this HTTP endpoint and insert it into
-    a new document in the messages collection."""
-    # Grab the text parameter.
-    original = req.args.get("text")
-    if original is None:
-        return https_fn.Response("No text parameter provided", status=400)
 
-    firestore_client: google.cloud.firestore.Client = firestore.client()
-
-    # Push the new message into Cloud Firestore using the Firebase Admin SDK.
-    _, doc_ref = firestore_client.collection("messages").add({"original": original})
-
-    # Send back a message that we've successfully written the message
-    return https_fn.Response(f"Message with ID {doc_ref.id} added.")
+#############################
+#############################
+#                           #
+# Strava Auth               #
+#                           #
+#############################
+#############################
 
 @https_fn.on_request(
         secrets=["STRAVA_CLIENT_ID"],
@@ -157,6 +157,40 @@ def updateAthleteAuthInFirestore(access_token,refresh_token,expires_at,athlete_i
         u'refresh_token': refresh_token,
         u'expires_at': expires_at,
     })
+
+
+#############################
+#############################
+#                           #
+# Testing                   #
+#                           #
+#############################
+#############################
+
+@https_fn.on_request(region="europe-north1")
+def addmessage(req: https_fn.Request) -> https_fn.Response:
+    """Take the text parameter passed to this HTTP endpoint and insert it into
+    a new document in the messages collection."""
+    # Grab the text parameter.
+    original = req.args.get("text")
+    if original is None:
+        return https_fn.Response("No text parameter provided", status=400)
+
+    firestore_client: google.cloud.firestore.Client = firestore.client()
+
+    # Push the new message into Cloud Firestore using the Firebase Admin SDK.
+    _, doc_ref = firestore_client.collection("messages").add({"original": original})
+
+    # Send back a message that we've successfully written the message
+    return https_fn.Response(f"Message with ID {doc_ref.id} added.")
+
+###############################
+###############################
+#                             #
+# Trigger on Activity Updates #
+#                             #
+###############################
+###############################
 
 @firestore_fn.on_document_created(
         document="activity-updates/{pushId}",
@@ -319,7 +353,6 @@ def upload_entry_to_UKC(firestore_client, data, uid, visibility, UKC_id=None, de
         return 'success', 'Activity updated in UKC'
     else:
         return 'error', 'No UKC_id returned'
-    
 
 def get_page_title(response):
     # Parse the HTML content of the response
@@ -544,6 +577,12 @@ def get_duration(elapsed_time):
     duration_min = int((elapsed_time % 3600) / 60)
     duration_sec = int((elapsed_time % 3600) % 60)
     return duration_hr, duration_min, duration_sec
+
+###############################
+#                             #
+# Strava Activity Getter      #
+#                             #
+###############################
     
 def get_activity_from_strava(firestore_client, athleteID, activityID):
     #get access_token
