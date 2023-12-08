@@ -5,6 +5,7 @@ from flask import Response, json, redirect
 import urllib.parse
 import requests
 from datetime import datetime
+from bs4 import BeautifulSoup
 
 # The Firebase Admin SDK to access Cloud Firestore.
 from firebase_admin import initialize_app, firestore, auth
@@ -53,7 +54,6 @@ def activity(req: https_fn.Request) -> https_fn.Response:
     firestore_client.collection("activity-updates").add(data)
     return https_fn.Response("Activity update received.", status=200)
 
-    
 def athlete(req: https_fn.Request) -> https_fn.Response:
     # store athlete update in firestore
     firestore_client: google.cloud.firestore.Client = firestore.client()
@@ -106,9 +106,6 @@ def verify_authorization(request):
         return Response("Sorry. You need to give Activity Read All permission to get activities to upload to UKC.", status=400)
         # TODO: upade this so users can give just read permission so only public activities are uploaded
 
-    # code here is an authorization code
-    # what this url will look like
-    #http://localhost/?state=&code=270cad31929190f0f41608aa3a5e16c89629d43a&scope=read,activity:read_all
     strava_request = requests.post(
         "https://www.strava.com/oauth/token",
         json={
@@ -131,7 +128,7 @@ def verify_authorization(request):
     # generate firebase login token
     firebase_token = auth.create_custom_token(str(athleteID))
     firebase_token_str = str(firebase_token)
-    #could make this conversion better. Taking off first 2 chars, and last char.
+    # TODO: could make this conversion better. Taking off first 2 chars, and last char.
     firebase_token_str = firebase_token_str[2:-1]
 
     #create redirect string to send back to front end
@@ -168,33 +165,52 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
     # Get the value of "original" if it exists.
     if event.data is None:
         return
-    
+    if event.data.get("update_status") != "new":
+        return
+    # set update_status to processing
+    firestore_client: google.cloud.firestore.Client = firestore.client()
+    update_ref = firestore_client.collection("activity-updates").document(event.document.split("/")[-1])
+    update_ref.set({
+        u'update_status': 'processing',
+    }, merge=True)
+
     # Check if auto upload is enabled for the user
     uid = event.data.get("owner_id")
-    firestore_client: google.cloud.firestore.Client = firestore.client()
     user_ref = firestore_client.collection(u'users').document(str(uid))
     user_doc = user_ref.get()
     if not user_doc.exists:
         print("user does not exist, deleting update")
-        firestore_client.collection("activity-updates").document(event.document.split("/")[-1]).delete()
+        update_ref.delete()
         return
     user_data = user_doc.to_dict()
     if not "auto_upload" in user_data or not user_doc.get("auto_upload"):
         print("auto upload not enabled, deleting update")
-        firestore_client.collection("activity-updates").document(event.document.split("/")[-1]).delete()
+        update_ref.delete()
         return
     
     # Check if aspect_type is "create" "update" or "delete"
-    if event.data.get("aspect_type") == "create":
-        create_entry(firestore_client, event.data, uid)
-    elif event.data.get("aspect_type") == "update":
-        update_entry(firestore_client, event.data, uid)
+    if event.data.get("aspect_type") == "create" or event.data.get("aspect_type") == "update":
+        status, error = update_entry(firestore_client, event.data, uid)
     elif event.data.get("aspect_type") == "delete":
-        delete_entry(firestore_client, event.data, uid)
+        status, error = delete_entry(firestore_client, event.data, uid)
+    else:
+        status = 'error'
+        error = 'aspect_type not create, update or delete'
+
+    if status == 'success':
+        # set update_status to success
+        update_ref.set({
+            u'update_status': 'success',
+        }, merge=True)
+    else:
+        update_ref.set({
+            u'update_status': status,
+            u'update_error': error,
+        }, merge=True)
+
 
 def create_entry(firestore_client, data, uid):
-    print("create activity")
-    upload_entry_to_UKC(firestore_client, data, uid)
+    return upload_entry_to_UKC(firestore_client, data, uid)
 
 def update_entry(firestore_client, data, uid):
     # Check if activity is already in firestore
@@ -206,7 +222,7 @@ def update_entry(firestore_client, data, uid):
         return
     activity_data = activity_doc.to_dict()
     UKC_id = activity_data.get("UKC_id")
-    upload_entry_to_UKC(firestore_client, data, uid, UKC_id)
+    return upload_entry_to_UKC(firestore_client, data, uid, UKC_id)
 
 def delete_entry(firestore_client, data, uid):
     # Check if activity is already in firestore
@@ -217,7 +233,7 @@ def delete_entry(firestore_client, data, uid):
         return
     activity_data = activity_doc.to_dict()
     UKC_id = activity_data.get("UKC_id")
-    upload_entry_to_UKC(firestore_client, data, uid, UKC_id, delete=True)
+    return upload_entry_to_UKC(firestore_client, data, uid, UKC_id, delete=True)
     
 def upload_entry_to_UKC(firestore_client, data, uid, UKC_id=None, delete=False):
     form_data = {}
@@ -232,13 +248,172 @@ def upload_entry_to_UKC(firestore_client, data, uid, UKC_id=None, delete=False):
             form_data['id'] = UKC_id
             form_data['update'] = 'Update entry'
     print('form_data', form_data)
+    # first try with existing auth code
+    auth_code = get_UKC_auth_code(firestore_client, uid)
+    response = send_entry_to_UKC(auth_code, form_data)
+    error = ''
+    if response.status_code == 200:
+        # Extract and print the page title
+        page_title = get_page_title(response)
+        print(f"Page Title: {page_title}")
+
+        # Check if auth didn't work
+        if 'Login' in page_title:
+            print("Login required. Obtaining a new auth code.")
+
+            # Obtain a new auth code
+            auth_code = get_new_UKC_auth_code(firestore_client, uid)
+
+            print("New auth code saved. Reattempting activity submission.")
+
+            # Retry activity submission with the new auth code
+            response = send_entry_to_UKC(auth_code, form_data)
+
+            # Check the response after retry
+            if 'Login' in get_page_title(response):
+                error = "Login failed a 2nd time."
+                print("Login failed a 2nd time. Error submitting activity.")
+            elif response.status_code == 200:
+                print("Activity submitted successfully after retry.")
+            else:
+                error = f"Error submitting activity after retry. Status code: {response.status_code}"
+                print(f"Error submitting activity after retry. Status code: {response.status_code}")
+                print(response.text)
+        else:
+            print("Activity submitted successfully.")
+    else:
+        error = f"Error submitting activity. Status code: {response.status_code}"
+        print(f"Error submitting activity. Status code: {response.status_code}")
+        print(response.text)
+    if error != '':
+        return 'error', error
+    # analyse response
+    analysis = analyse_upload_response(response)
+    if analysis['status'] == 'success' and not UKC_id:
+        UKC_id = analysis['id']
+    if analysis['status'] == 'error':
+        return 'error', analysis['error']
+    if UKC_id:
+        activity_id = data.get("object_id")
+        activity_ref = firestore_client.collection(u'users').document(str(uid)).collection(u'activities').document(str(activity_id))
+        if delete:
+            activity_ref.delete()
+        else:
+            activity_ref.set({
+                u'UKC_id': UKC_id,
+            }, merge=True)
+        return 'success', None
+    else:
+        return 'error', 'No UKC_id returned'
+    
+
+def get_page_title(response):
+    # Parse the HTML content of the response
+    soup = BeautifulSoup(response.content, 'html.parser')
+    # Extract and print the page title
+    page_title = soup.title.string if soup.title else 'No title found'
+    return page_title
+
+def analyse_upload_response(response):
+    # ID is within <a href="adddiary.php?id=726080">Edit entry</a>
+    # Parse the HTML content of the response
+    soup = BeautifulSoup(response.content, 'html.parser')
+    for link in soup.find_all('a'):
+        if 'Edit entry' in link.text:
+            return {'status':'success','id':link['href'].split('=')[1]}
+    # check if entry isn't in this user's dairy ("that entry isn't in your diary")
+    if 'that entry isn\'t in your diary' in response.text:
+        return {'status':'error','error':'Entry not in this user\'s diary'}
+    # search for text within a div with class alert-danger
+    for div in soup.find_all('div', class_='alert-danger'):
+        return {'status':'error','error':div.text.strip()}
+    return {'status':'error','error':'Unknown error'}
+
+def get_UKC_auth_code(firestore_client, uid):
+    # Check if the auth code file exists
+    # TODO: get auth from firestore
+    athlete_ref = firestore_client.collection(u'users').document(str(uid))
+    auth_ref = athlete_ref.collection(u'private').document(u'UKC_auth')
+    auth = auth_ref.get().to_dict()
+    if auth.get("auth_code", None) is not None:
+        # Read the most recent auth code from the file
+        auth_code = auth["auth_code"]
+    else:
+        # If the file doesn't exist, obtain a new auth code
+        auth_code = get_new_UKC_auth_code(firestore_client, uid, auth["username"], auth["password"])
+    return auth_code
+
+def get_new_UKC_auth_code(firestore_client, uid, username=None, password=None):
+    athlete_ref = firestore_client.collection(u'users').document(str(uid))
+    auth_ref = athlete_ref.collection(u'private').document(u'UKC_auth')
+    if username is None or password is None:
+        # get username and password from firestore
+        auth = auth_ref.get().to_dict()
+        username = auth["username"]
+        password = auth["password"]
+
+    # Specify the login endpoint
+    login_url = 'https://www.ukclimbing.com/user/'
+
+    # Form data for login
+    login_data = {
+        'ref': '/',
+        'email': username,
+        'password': password,
+        'login': '1',
+    }
+
+    # Create a session object
+    session = requests.Session()
+
+    # set referrer poicy to origin-when-cross-origin
+    session.headers.update({'Referrer-Policy': 'origin-when-cross-origin'})
+    session.cookies.update({'ukc_test': 'test'})
+    session.cookies.update({'session_login': '1'})
+
+    # Send a POST request to log in
+    response = session.post(login_url, data=login_data, allow_redirects=True)
+
+    wrong_password_text = 'The password or username/email you entered is invalid'
+    if wrong_password_text in response.text:
+        print("Wrong password entered.")
+        # throw exception
+        # TODO: delete auth from firestore when wrong password detected
+        raise Exception("Wrong password entered.")
+    
+    # Loop through cookies to find one that has ukcsid
+    for cookie in session.cookies:
+        if cookie.name == 'ukcsid':
+            auth_ref.set({u'auth_code': cookie.value}, merge=True)
+            return cookie.value
+        
+    # If no ukcsid cookie was found, return None
+    print("No ukcsid cookie found.")
+    raise Exception("Login failed.")
+
+def send_entry_to_UKC(auth_code, form_data):
+    # Authentication cookie
+    auth_cookie = {'ukcsid': auth_code}
+
+    # Create a session object to persist cookies
+    session = requests.Session()
+    session.cookies.update(auth_cookie)
+
+    # Send a POST request with the session
+    url_submit = 'https://www.ukclimbing.com/logbook/adddiary.php'
+    response = session.post(url_submit, data=form_data)
+    # Save response html content to file
+    with open('submit_response.html', 'w') as file:
+        file.write(response.text)
+
+    return response
 
 def get_form_data_for_activity(firestore_client, data, uid):
     activity_id = data.get("object_id")
     activity = get_activity_from_strava(firestore_client, uid, activity_id)
     # print('activity', activity)
     entry_type = map_type(activity["sport_type"], activity["distance"])
-    start_time = datetime.strptime(activity["start_date_local"])
+    start_time = datetime.strptime(activity["start_date_local"], "%Y-%m-%dT%H:%M:%SZ")
     timeslot = get_timeslot(start_time)
     date = get_date(start_time)
     duration_hr, duration_min, duration_sec = get_duration(activity["elapsed_time"])
@@ -251,18 +426,18 @@ def get_form_data_for_activity(firestore_client, data, uid):
         'duration_hr': duration_hr,
         'duration_min': duration_min,
         'duration_sec': duration_sec,
-        'distance': activity["distance"]/1000, # Distance in km
+        'distance': str(round(activity["distance"]/1000,4)), # Distance in km
         'km': '1', # km as unit
         'description': activity["description"],
         'extra[0]': '',
-        'extra[1]': '150', # Heart rate (average bmp)
+        'extra[1]': activity.get("average_heartrate",''), # Heart rate (average bmp)
         'extra[2]': '', # Body weight (kg)
         'extra[3]': '', # Body fat (%)
-        'extra[4]': activity["calories"], # Calories
-        'extra[5]': activity["average_cadence"], # Cadence (average per minute)
-        'extra[6]': activity["gear"]["name"], # Shoes
+        'extra[4]': activity.get("calories",''), # Calories
+        'extra[5]': activity.get("average_cadence",''), # Cadence (average per minute)
+        'extra[6]': activity.get("gear",{"name":''})["name"], # Shoes
         'extra[7]': '', # Laps TODO: add laps
-        'extra[8]': '', # Intensity (1-5)
+        'extra[8]': '', # Intensity (1-5) TODO: add intensity (perhaps suffer_score)
         'extra[9]': activity["total_elevation_gain"], # Elevation gain (meters)
         'extra[1040]': f'https://www.strava.com/activities/{activity_id}', # Link to activity
         'update': 'Add entry',
