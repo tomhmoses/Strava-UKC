@@ -188,12 +188,13 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
         print("auto upload not enabled, deleting update")
         update_ref.delete()
         return
+    visibility = user_doc("auto_upload_visibility", "everyone")
     
     # Check if aspect_type is "create" "update" or "delete"
     if event.data.get("aspect_type") == "create" or event.data.get("aspect_type") == "update":
-        status, error = update_entry(firestore_client, event.data, uid)
+        status, error = update_entry(firestore_client, event.data, uid, visibility)
     elif event.data.get("aspect_type") == "delete":
-        status, error = delete_entry(firestore_client, event.data, uid)
+        status, error = delete_entry(firestore_client, event.data, uid, visibility)
     else:
         status = 'error'
         error = 'aspect_type not create, update or delete'
@@ -204,21 +205,21 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
     }, merge=True)
 
 
-def create_entry(firestore_client, data, uid):
-    return upload_entry_to_UKC(firestore_client, data, uid)
+def create_entry(firestore_client, data, uid, visibility):
+    return upload_entry_to_UKC(firestore_client, data, uid, visibility)
 
-def update_entry(firestore_client, data, uid):
+def update_entry(firestore_client, data, uid, visibility):
     # Check if activity is already in firestore
     activity_id = data.get("object_id")
     activity_ref = firestore_client.collection(u'users').document(str(uid)).collection(u'activities').document(str(activity_id))
     activity_doc = activity_ref.get()
     if not activity_doc.exists:
-        return create_entry(firestore_client, data, uid)
+        return create_entry(firestore_client, data, uid, visibility)
     activity_data = activity_doc.to_dict()
     UKC_id = activity_data.get("UKC_id")
-    return upload_entry_to_UKC(firestore_client, data, uid, UKC_id)
+    return upload_entry_to_UKC(firestore_client, data, uid, UKC_id, visibility)
 
-def delete_entry(firestore_client, data, uid):
+def delete_entry(firestore_client, data, uid, visibility):
     # Check if activity is already in firestore
     activity_id = data.get("object_id")
     activity_ref = firestore_client.collection(u'users').document(str(uid)).collection(u'activities').document(str(activity_id))
@@ -227,20 +228,34 @@ def delete_entry(firestore_client, data, uid):
         return 'success', 'We have not uploaded this activity to UKC before'
     activity_data = activity_doc.to_dict()
     UKC_id = activity_data.get("UKC_id")
-    return upload_entry_to_UKC(firestore_client, data, uid, UKC_id, delete=True)
+    return upload_entry_to_UKC(firestore_client, data, uid, UKC_id, visibility, delete=True)
+
+def should_upload_to_UKC(auto_upload_visibility, activity_visibility):
+    # activity visibility can be 'everyone', 'followers_only', 'only_me'
+    # if auto_upload_visibility is 'everyone' only upload if activity_visibility is 'everyone'
+    # if auto_upload_visibility is 'followers_only' only upload if activity_visibility is 'everyone' or 'followers_only'
+    # if auto_upload_visibility is 'only_me' upload all activities
+    if auto_upload_visibility == 'only_me':
+        return True
+    if auto_upload_visibility == 'followers_only' and activity_visibility != 'only_me':
+        return True
+    if auto_upload_visibility == 'everyone' and activity_visibility == 'everyone':
+        return True
+    return False
+
     
-def upload_entry_to_UKC(firestore_client, data, uid, UKC_id=None, delete=False):
+def upload_entry_to_UKC(firestore_client, data, uid, visibility, UKC_id=None, delete=False):
     form_data = {}
     if not delete:
-        form_data = get_form_data_for_activity(firestore_client, data, uid)
-        if form_data is None and UKC_id is None:
-            return 'success', 'Activity is private and not previously uploaded to UKC'
-        elif form_data is None:
+        form_data, activity_visibility = get_form_data_for_activity(firestore_client, data, uid)
+        if form_data is None or not should_upload_to_UKC(visibility, activity_visibility):
             delete = True
         elif UKC_id:
             form_data['id'] = UKC_id
             form_data['update'] = 'Update entry'
     if delete:
+        if UKC_id is None:
+            return 'success', 'We have not uploaded this activity to UKC before, no changes made.'
         form_data = {
             'id': UKC_id,
             'delete': 'Delete from diary',
@@ -328,7 +343,10 @@ def analyse_upload_response(response):
         return {'status':'error','error':div.text.strip()}
     # check if entry was deleted "Deleted that entry from your diary"
     if 'Deleted that entry from your diary' in response.text:
-        return {'status':'success','id':None}
+        return {'status':'success'}
+    # check if entry was updated "Updated existing entry in your exercise diary"
+    if 'Updated existing entry in your exercise diary' in response.text:
+        return {'status':'success'}
     return {'status':'error','error':'Unknown error'}
 
 def get_UKC_auth_code(firestore_client, uid):
@@ -417,6 +435,7 @@ def send_entry_to_UKC(auth_code, form_data):
     return response
 
 def get_form_data_for_activity(firestore_client, data, uid):
+    # TODO: respect stats_visibility privacy settings
     activity_id = data.get("object_id")
     activity = get_activity_from_strava(firestore_client, uid, activity_id)
     if activity is None:
