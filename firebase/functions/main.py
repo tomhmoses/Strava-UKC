@@ -378,7 +378,13 @@ def get_new_UKC_auth_code(firestore_client, uid, username=None, password=None):
     if wrong_password_text in response.text:
         print("Wrong password entered.")
         # throw exception
-        # TODO: delete auth from firestore when wrong password detected
+        auth_ref.delete()
+        # update user doc to turn off auto upload and add error message of incorrect UKC password
+        user_ref = firestore_client.collection(u'users').document(str(uid))
+        user_ref.set({
+            u'auto_upload': False,
+            u'auto_upload_error': 'Incorrect UKC password',
+        }, merge=True)
         raise Exception("Wrong password entered.")
     
     # Loop through cookies to find one that has ukcsid
