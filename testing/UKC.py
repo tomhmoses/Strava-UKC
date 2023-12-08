@@ -238,6 +238,13 @@ def activity_type(name):
     }
     return mapping[name]
 
+def delete_entry(activity_id):
+    form_data = {
+        'id': activity_id,
+        'delete': 'Delete from diary',
+    }
+    upload_activity_with_retry(form_data)
+
 def main():
     # Form post data extracted from the URL
     form_data = get_example_form_data()
@@ -246,4 +253,5 @@ def main():
     print(f"Activity ID: {activity_id}")
 
 if __name__ == "__main__":
-    main()
+    # main()
+    delete_entry('726094')
