@@ -7,6 +7,7 @@ import Header from './components/nav/Header';
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -26,12 +27,15 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const firestore = getFirestore(app);
+const functions = getFunctions(app);
+
+
 
 
 const router = createBrowserRouter(
   createRoutesFromElements(
     <Route path="/" element={<Header />}>
-      <Route index element={<Home firestore={firestore} />} />
+      <Route index element={<Home firestore={firestore} functions={functions}/>} />
       <Route path="completelogin" element={<CompleteLogin />} />
       <Route path="*" element={<h1>Not Found</h1>} />
     </Route>

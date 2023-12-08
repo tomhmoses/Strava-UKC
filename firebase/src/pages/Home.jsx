@@ -21,7 +21,7 @@ const Home = (props) => {
   }
   if (user) {
     return (
-      <UserHome firestore={props.firestore} user={user}/>
+      <UserHome firestore={props.firestore} functions={props.functions} user={user}/>
     )
   }
   return (
