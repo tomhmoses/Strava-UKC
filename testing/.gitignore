@@ -2,3 +2,4 @@ files/*
 *.gpx
 __pycache__/*
 *.pyc
+*.html
