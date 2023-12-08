@@ -629,3 +629,50 @@ def getNewAccessToken(athleteID, refresh_token):
     expires_at = strava_request.json()["expires_at"]
     updateAthleteAuthInFirestore(access_token,refresh_token,expires_at,athleteID)
     return access_token
+
+
+###############################
+#                             #
+# Set up UKC Auth             #
+#                             #
+###############################
+
+@https_fn.on_call(region="europe-west2")
+def set_up_UKC_auth(req: https_fn.CallableRequest) -> dict:
+    if req.auth is None:
+        # Throwing an HttpsError so that the client gets the error details.
+        raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
+                                message="The function must be called while authenticated.")
+    username = req.data.get("username")
+    password = req.data.get("password")
+    if username is None or password is None:
+        raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                                message="The function must be called with username and password arguments.")
+    # test username and password
+    firestore_client: google.cloud.firestore.Client = firestore.client()
+    try:
+        auth_code = get_new_UKC_auth_code(firestore_client, req.auth.uid, username, password)
+    except Exception as e:
+        if str(e) == 'Wrong password entered.':
+            raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                                    message="The username or password is incorrect.")
+        else:
+            raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INTERNAL,
+                                    message="Error setting up UKC auth.")
+    # save username and password in firestore
+    user_ref = firestore_client.collection(u'users').document(str(req.auth.uid))
+    auth_ref = user_ref.collection(u'private').document(u'UKC_auth')
+    auth_ref.set({
+        u'username': username,
+        u'password': password,
+        u'auth_code': auth_code,
+    })
+    # turn on auto upload and store visibility
+    user_ref.set({
+        u'auto_upload': True,
+        u'auto_upload_visibility': req.data.get("visibility", "everyone"),
+        u'ukc_username': username,
+    }, merge=True)
+
+    # return success
+    return {'success': True}
