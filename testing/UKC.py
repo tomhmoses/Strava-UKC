@@ -175,8 +175,8 @@ def upload_activity_with_retry(form_data):
     else:
         print(f"Error submitting activity. Status code: {response.status_code}")
         print(response.text)
-    # with open('submit_response.html', 'w') as file:
-    #             file.write(response.text)
+    with open('submit_response.html', 'w') as file:
+                file.write(response.text)
     return analyse_upload_response(response)
     
 
@@ -254,11 +254,14 @@ def analyse_upload_response(response):
         if 'Edit entry' in link.text:
             return {'status':'success','id':link['href'].split('=')[1]}
     # check if entry isn't in this user's dairy ("that entry isn't in your diary")
-    # if 'that entry isn\'t in your diary' in response.text:
-    #     return {'status':'error','error':'Entry not in this user\'s diary'}
+    if 'that entry isn\'t in your diary' in response.text:
+        return {'status':'error','error':'Entry not in this user\'s diary'}
     # search for text within a div with class alert-danger
     for div in soup.find_all('div', class_='alert-danger'):
         return {'status':'error','error':div.text.strip()}
+    # check if entry was deleted "Deleted that entry from your diary"
+    if 'Deleted that entry from your diary' in response.text:
+        return {'status':'success','id':None}
     return {'status':'error','error':'Unknown error'}
 
 def main():
@@ -269,5 +272,5 @@ def main():
     print(f"Status: {status}")
 
 if __name__ == "__main__":
-    main()
-    # delete_entry('726233')
+    # main()
+    delete_entry('726263')
