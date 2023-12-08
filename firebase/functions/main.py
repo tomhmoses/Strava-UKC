@@ -239,7 +239,7 @@ def should_upload_to_UKC(auto_upload_visibility, activity_visibility):
         return True
     if auto_upload_visibility == 'followers_only' and activity_visibility != 'only_me':
         return True
-    if auto_upload_visibility == 'everyone' and activity_visibility == 'everyone':
+    if activity_visibility == 'everyone':
         return True
     return False
 
@@ -471,7 +471,7 @@ def get_form_data_for_activity(firestore_client, data, uid):
         'extra[1040]': f'https://www.strava.com/activities/{activity_id}', # Link to activity
         'update': 'Add entry',
     }
-    return form_data
+    return form_data, activity["visibility"]
 
 def map_type(strava_type, distance):
     # Strava types: AlpineSki, BackcountrySki, Badminton, Canoeing, Crossfit, EBikeRide, Elliptical, EMountainBikeRide, Golf, GravelRide, Handcycle, HighIntensityIntervalTraining, Hike, IceSkate, InlineSkate, Kayaking, Kitesurf, MountainBikeRide, NordicSki, Pickleball, Pilates, Racquetball, Ride, RockClimbing, RollerSki, Rowing, Run, Sail, Skateboard, Snowboard, Snowshoe, Soccer, Squash, StairStepper, StandUpPaddling, Surfing, Swim, TableTennis, Tennis, TrailRun, Velomobile, VirtualRide, VirtualRow, VirtualRun, Walk, WeightTraining, Wheelchair, Windsurf, Workout, Yoga
