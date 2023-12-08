@@ -1,8 +1,8 @@
 import React from 'react';
-import { Form, Input, Modal, Radio } from 'antd';
+import { Form, Input, Modal, Alert } from 'antd';
 
 
-const SetUpUKC = ({ open, onCreate, onCancel, defaultUsername }) => {
+const SetUpUKC = ({ open, onCreate, onCancel, defaultUsername, error, confirmLoading }) => {
     const [form] = Form.useForm();
     return (
       <Modal
@@ -11,6 +11,7 @@ const SetUpUKC = ({ open, onCreate, onCancel, defaultUsername }) => {
         okText="Confirm"
         cancelText="Cancel"
         onCancel={onCancel}
+        confirmLoading={confirmLoading}
         onOk={() => {
           form
             .validateFields()
@@ -23,6 +24,7 @@ const SetUpUKC = ({ open, onCreate, onCancel, defaultUsername }) => {
             });
         }}
       >
+        {error && <Alert message={error} type="error" />}
         <Form
           form={form}
           layout="vertical"

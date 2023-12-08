@@ -3,7 +3,7 @@ import { Typography, Form, Input, Switch, Button } from 'antd';
 import { doc } from 'firebase/firestore';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
 import SetUpUKC from '../components/SetUpUKC';
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { httpsCallable } from "firebase/functions";
 
 const { Title, Paragraph } = Typography;
 
@@ -16,8 +16,13 @@ const UserHome = (props) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [switchLoading, setSwitchLoading] = useState(false);
 
-  const onCreate = (values) => {
+  const [error, setError] = useState('');
+  const [modalSubmitLoading, setModalSubmitLoading] = useState(false);
+
+  const onCreate = async (values) => {
     console.log('Received values of form: ', values);
+    setError('');
+    setModalSubmitLoading(true);
     // call function to set UKC username and password
     // function is called set_up_UKC_auth and is a firebase function
     // it takes the username and password and sets them in the database
@@ -25,30 +30,31 @@ const UserHome = (props) => {
     // it returns {'success': True} if it worked else it returns an error
 
     // call firebase function
-    // const setUpUKCAuth = props.functions.httpsCallable('set_up_UKC_auth');
-    const functions = getFunctions();
-    const setUpUKCAuth = httpsCallable(functions, 'set_up_UKC_auth');
-    setUpUKCAuth(values).then((result) => {
+    const setUpUKCAuth = httpsCallable(props.functions,'set_up_UKC_auth');
+    await setUpUKCAuth(values).then((result) => {
       console.log(result.data);
       if (result.data.success) {
-        // set the username in the database
-        userRef.set({
-          ukc_username: values.username,
-          auto_upload: true
-        }, { merge: true });
-      } else {
+        // show success message
+        console.log("success");
+        setModalSubmitLoading(false);
+        setModalVisible(false);
+        setSwitchLoading(false);
+      } else if (result.data.error === "Incorrect UKC username or password.") {
         // show error message
-        console.log(result.data.error);
+        console.log("wrong username or password");
+        // show this in the model
+        setError("The username or password is incorrect.");
+        setModalSubmitLoading(false);
       }
     });
-    setModalVisible(false);
-    setSwitchLoading(false);
   }; 
   const onCancel = () => {
     setModalVisible(false);
     // toggle switch back to false
     form.setFieldsValue({ukcAutoUpload: false});
     setSwitchLoading(false);
+    setError('');
+    setModalSubmitLoading(false);
   };
 
   const [form] = Form.useForm();
@@ -62,6 +68,24 @@ const UserHome = (props) => {
       console.log("open modal");
       setModalVisible(true);
       setSwitchLoading(true);
+    } else {
+      setSwitchLoading(true);
+      // call firebase function to remove UKC username and password
+      const disableUpload = httpsCallable(props.functions,'disable_auto_upload');
+      disableUpload().then((result) => {
+        console.log(result.data);
+        if (result.data.success) {
+          // show success message
+          console.log("success");
+          setSwitchLoading(false);
+        } else if (result.data.error === "Incorrect UKC username or password.") {
+          // show error message
+          console.log("wrong username or password");
+          // show this in the model
+          setError("The username or password is incorrect.");
+          setModalSubmitLoading(false);
+        }
+      });
     }
 
   };
@@ -72,7 +96,7 @@ const UserHome = (props) => {
     {!data && <Title level={3}>Loading account data...</Title>}
     {data &&
       <>
-        <SetUpUKC open={modalVisible} onCreate={onCreate} onCancel={onCancel} defaultUsername={data?.ukc_username || ''} />
+        <SetUpUKC open={modalVisible} onCreate={onCreate} onCancel={onCancel} defaultUsername={data?.ukc_username || ''} error={error} confirmLoading={modalSubmitLoading} />
         {!data.firstname && <Title level={3}>
           User data is incomplete.
         </Title>}

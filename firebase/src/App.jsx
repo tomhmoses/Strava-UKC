@@ -27,7 +27,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const firestore = getFirestore(app);
-const functions = getFunctions(app);
+const functions = getFunctions(app, 'europe-west2');
 
 
 

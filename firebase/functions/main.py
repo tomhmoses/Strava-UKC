@@ -654,8 +654,7 @@ def set_up_UKC_auth(req: https_fn.CallableRequest) -> dict:
         auth_code = get_new_UKC_auth_code(firestore_client, req.auth.uid, username, password)
     except Exception as e:
         if str(e) == 'Wrong password entered.':
-            raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
-                                    message="The username or password is incorrect.")
+            return {'success': False, 'error': 'Incorrect UKC username or password.'}
         else:
             raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INTERNAL,
                                     message="Error setting up UKC auth.")
@@ -672,7 +671,27 @@ def set_up_UKC_auth(req: https_fn.CallableRequest) -> dict:
         u'auto_upload': True,
         u'auto_upload_visibility': req.data.get("visibility", "everyone"),
         u'ukc_username': username,
+        u'auto_upload_error': None,
     }, merge=True)
 
+    # return success
+    return {'success': True}
+
+
+@https_fn.on_call(region="europe-west2")
+def disable_auto_upload(req: https_fn.CallableRequest) -> dict:
+    if req.auth is None:
+        # Throwing an HttpsError so that the client gets the error details.
+        raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
+                                message="The function must be called while authenticated.")
+    # turn off auto upload
+    firestore_client: google.cloud.firestore.Client = firestore.client()
+    user_ref = firestore_client.collection(u'users').document(str(req.auth.uid))
+    user_ref.set({
+        u'auto_upload': False,
+    }, merge=True)
+    # delete auth stuff
+    auth_ref = user_ref.collection(u'private').document(u'UKC_auth')
+    auth_ref.delete()
     # return success
     return {'success': True}
