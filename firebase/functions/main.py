@@ -188,7 +188,7 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
         print("auto upload not enabled, deleting update")
         update_ref.delete()
         return
-    visibility = user_doc("auto_upload_visibility", "everyone")
+    visibility = user_data("auto_upload_visibility", "everyone")
     
     # Check if aspect_type is "create" "update" or "delete"
     if event.data.get("aspect_type") == "create" or event.data.get("aspect_type") == "update":
