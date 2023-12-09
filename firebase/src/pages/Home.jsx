@@ -27,18 +27,26 @@ const Home = (props) => {
     return (
       <Layout style={{ minHeight: "100vh" }}>
         <AppHeader />
-        <Content><UserHome firestore={props.firestore} functions={props.functions} user={user}/></Content>
+        <Content style={{ background: 'white' }}>
+          <UserHome firestore={props.firestore} functions={props.functions} user={user}/>
+        </Content>
         <AppFooter />
       </Layout>
     )
   }
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Content>
+      <Content style={{ background: 'white' }}>
         <Title level={3}>Strava to UKC</Title>
         <Paragraph>Connect your Strava account to UKC to automatically upload your public Strava activities to your UKClimbing and UKHillwalking Activity Dairy.</Paragraph>
         <a href="/api/authorize_strava">
-          <img src='/btn_strava_connectwith_orange@2x.png' height={48} />
+          <Button
+            type="primary"
+            href="/api/authorize_strava"
+            style={{ background: '#fc4c02', height: 60}}
+          >
+            <img src='/btn_strava_connectwith_orange.svg' height={48} />
+          </Button>
         </a>
       </Content>
       <AppFooter />
