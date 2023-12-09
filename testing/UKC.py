@@ -264,6 +264,52 @@ def analyse_upload_response(response):
         return {'status':'success','id':None}
     return {'status':'error','error':'Unknown error'}
 
+def get_UKC_auth_code(firestore_client, uid):
+    return get_auth_code()
+
+def get_new_UKC_auth_code(firestore_client, uid):
+    return get_new_auth_code()
+
+def check_user_is_UKC_supporter(firestore_client, uid):
+    auth_code = get_UKC_auth_code(firestore_client, uid)
+    # with auth code, get user profile page (https://www.ukclimbing.com/user/profile.php) (and follow redirects)
+    response = get_profile_page(auth_code)
+
+    # to check if login worked, profile page should contain an <a> with href="/user/options.php?logout=1"
+    # if login didn't work, get new auth code and try again
+    if not check_login_for_profile_page(response):
+        auth_code = get_new_UKC_auth_code(firestore_client, uid)
+        response = get_profile_page(auth_code)
+        if not check_login_for_profile_page(response):
+            # if login still didn't work, throw an error
+            return None
+
+    # if login worked, check if user is a supporter
+    # if supporter, page will contain an <a> with href="/user/supporter/"
+    soup = BeautifulSoup(response.content, 'html.parser')
+    for link in soup.find_all('a'):
+        if 'href' in link.attrs and link['href'] == '/user/supporter/':
+            return True
+    return False
+
+def get_profile_page(auth_code):
+    auth_cookie = {'ukcsid': auth_code}
+    # Create a session object to persist cookies
+    session = requests.Session()
+    session.cookies.update(auth_cookie)
+
+    # Send a POST request with the session
+    url = 'https://www.ukclimbing.com/user/profile.php'
+    response = session.get(url)
+    return response
+
+def check_login_for_profile_page(response):
+    soup = BeautifulSoup(response.content, 'html.parser')
+    for link in soup.find_all('a'):
+        if 'href' in link.attrs and link['href'] == '/user/options.php?logout=1':
+            return True
+    return False
+
 def main():
     # Form post data extracted from the URL
     form_data = get_example_form_data()
@@ -273,4 +319,5 @@ def main():
 
 if __name__ == "__main__":
     # main()
-    delete_entry('726263')
+    # delete_entry('726263')
+    print(check_user_is_UKC_supporter(None, None))

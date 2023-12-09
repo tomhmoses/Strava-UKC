@@ -461,8 +461,8 @@ def send_entry_to_UKC(auth_code, form_data):
     url_submit = 'https://www.ukclimbing.com/logbook/adddiary.php'
     response = session.post(url_submit, data=form_data)
     # Save response html content to file
-    with open('submit_response.html', 'w') as file:
-        file.write(response.text)
+    # with open('submit_response.html', 'w') as file:
+    #     file.write(response.text)
 
     return response
 
@@ -698,8 +698,75 @@ def disable_auto_upload(req: https_fn.CallableRequest) -> dict:
 
 @https_fn.on_call(region="europe-west2")
 def enable_gpx_upload(req: https_fn.CallableRequest) -> dict:
-    return {'success': False, 'error': 'Not implemented yet.'}
+    if req.auth is None:
+        # Throwing an HttpsError so that the client gets the error details.
+        raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
+                                message="The function must be called while authenticated.")
+    firestore_client: google.cloud.firestore.Client = firestore.client()
+    isSupporter = check_user_is_UKC_supporter(firestore_client, req.auth.uid)
+    if not isSupporter:
+        return {'success': False, 'error': 'You must be a UKC supporter to enable GPX upload.'}
+    # turn on gpx upload
+    user_ref = firestore_client.collection(u'users').document(str(req.auth.uid))
+    user_ref.set({
+        u'gpx_upload': True,
+    }, merge=True)
+    # return success
+    return {'success': True}
+
 
 @https_fn.on_call(region="europe-west2")
 def disable_gpx_upload(req: https_fn.CallableRequest) -> dict:
-    return {'success': False, 'error': 'Not implemented yet.'}
+    if req.auth is None:
+        # Throwing an HttpsError so that the client gets the error details.
+        raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
+                                message="The function must be called while authenticated.")
+    # turn off gpx upload
+    firestore_client: google.cloud.firestore.Client = firestore.client()
+    user_ref = firestore_client.collection(u'users').document(str(req.auth.uid))
+    user_ref.set({
+        u'gpx_upload': False,
+    }, merge=True)
+    # return success
+    return {'success': True}
+
+def check_user_is_UKC_supporter(firestore_client, uid):
+    auth_code = get_UKC_auth_code(firestore_client, uid)
+    # with auth code, get user profile page (https://www.ukclimbing.com/user/profile.php) (and follow redirects)
+    response = get_profile_page(auth_code)
+
+    # to check if login worked, profile page should contain an <a> with href="/user/options.php?logout=1"
+    # if login didn't work, get new auth code and try again
+    if not check_login_for_profile_page(response):
+        auth_code = get_new_UKC_auth_code(firestore_client, uid)
+        response = get_profile_page(auth_code)
+        if not check_login_for_profile_page(response):
+            # if login still didn't work, throw an error
+            raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INTERNAL,
+                                    message="Error checking if user is a UKC supporter.")
+
+    # if login worked, check if user is a supporter
+    # if supporter, page will contain an <a> with href="/user/supporter/"
+    soup = BeautifulSoup(response.content, 'html.parser')
+    for link in soup.find_all('a'):
+        if 'href' in link.attrs and link['href'] == '/user/supporter/':
+            return True
+    return False
+
+def get_profile_page(auth_code):
+    auth_cookie = {'ukcsid': auth_code}
+    # Create a session object to persist cookies
+    session = requests.Session()
+    session.cookies.update(auth_cookie)
+
+    # Send a POST request with the session
+    url = 'https://www.ukclimbing.com/user/profile.php'
+    response = session.get(url)
+    return response
+
+def check_login_for_profile_page(response):
+    soup = BeautifulSoup(response.content, 'html.parser')
+    for link in soup.find_all('a'):
+        if 'href' in link.attrs and link['href'] == '/user/options.php?logout=1':
+            return True
+    return False

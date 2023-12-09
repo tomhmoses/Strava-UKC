@@ -171,7 +171,7 @@ const UserHome = (props) => {
               label="Upload GPX to UKC"
               name="uploadGPX"
               valuePropName="checked"
-              initialValue={data?.upload_gpx || false}
+              initialValue={data?.gpx_upload || false}
             >
               <Switch loading={gpxSwitchLoading}/>
             </Form.Item>
