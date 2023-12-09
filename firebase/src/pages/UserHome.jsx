@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Typography, Form, Switch, message } from 'antd';
+import { Typography, Form, Switch, message, Alert } from 'antd';
 
 import { doc } from 'firebase/firestore';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
@@ -110,6 +110,7 @@ const UserHome = (props) => {
         <Paragraph>
           To automatically upload your activities to UKC, you need to give this app your UKC login details. These will be stored securely, and only used to upload activities to UKC.
         </Paragraph>
+        {data.auto_upload_error && <Alert message={data.auto_upload_error} type="error" />}
         <Form
           layout='vertical'
           form={form}
