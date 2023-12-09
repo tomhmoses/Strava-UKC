@@ -223,12 +223,13 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
         update_ref.delete()
         return
     visibility = user_data.get("auto_upload_visibility", "everyone")
+    route = user_data.get("gpx_upload", False)
     
     # Check if aspect_type is "create" "update" or "delete"
     if event.data.get("aspect_type") == "create" or event.data.get("aspect_type") == "update":
-        status, error = update_entry(firestore_client, event.data, uid, visibility)
+        status, error = update_entry(firestore_client, event.data, uid, visibility, route)
     elif event.data.get("aspect_type") == "delete":
-        status, error = delete_entry(firestore_client, event.data, uid, visibility)
+        status, error = delete_entry(firestore_client, event.data, uid)
     else:
         status = 'error'
         error = 'aspect_type not create, update or delete'
@@ -239,21 +240,21 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
     }, merge=True)
 
 
-def create_entry(firestore_client, data, uid, visibility):
-    return upload_entry_to_UKC(firestore_client, data, uid, visibility)
+def create_entry(firestore_client, data, uid, visibility, route):
+    return upload_entry_to_UKC(firestore_client, data, uid, visibility, route)
 
-def update_entry(firestore_client, data, uid, visibility):
+def update_entry(firestore_client, data, uid, visibility, route):
     # Check if activity is already in firestore
     activity_id = data.get("object_id")
     activity_ref = firestore_client.collection(u'users').document(str(uid)).collection(u'activities').document(str(activity_id))
     activity_doc = activity_ref.get()
     if not activity_doc.exists:
-        return create_entry(firestore_client, data, uid, visibility)
+        return create_entry(firestore_client, data, uid, visibility, route)
     activity_data = activity_doc.to_dict()
     UKC_id = activity_data.get("UKC_id")
-    return upload_entry_to_UKC(firestore_client, data, uid, visibility, UKC_id)
+    return upload_entry_to_UKC(firestore_client, data, uid, visibility, route, UKC_id)
 
-def delete_entry(firestore_client, data, uid, visibility):
+def delete_entry(firestore_client, data, uid):
     # Check if activity is already in firestore
     activity_id = data.get("object_id")
     activity_ref = firestore_client.collection(u'users').document(str(uid)).collection(u'activities').document(str(activity_id))
@@ -262,7 +263,7 @@ def delete_entry(firestore_client, data, uid, visibility):
         return 'success', 'We have not uploaded this activity to UKC before'
     activity_data = activity_doc.to_dict()
     UKC_id = activity_data.get("UKC_id")
-    return upload_entry_to_UKC(firestore_client, data, uid, visibility, UKC_id, delete=True)
+    return upload_entry_to_UKC(firestore_client, data, uid, UKC_id=UKC_id, delete=True)
 
 def should_upload_to_UKC(auto_upload_visibility, activity_visibility):
     # activity visibility can be 'everyone', 'followers_only', 'only_me'
@@ -278,10 +279,10 @@ def should_upload_to_UKC(auto_upload_visibility, activity_visibility):
     return False
 
     
-def upload_entry_to_UKC(firestore_client, data, uid, visibility, UKC_id=None, delete=False):
+def upload_entry_to_UKC(firestore_client, data, uid, visibility='everyone', route=False, UKC_id=None, delete=False):
     form_data = {}
     if not delete:
-        form_data, activity_visibility = get_form_data_for_activity(firestore_client, data, uid)
+        form_data, activity_visibility = get_form_data_for_activity(firestore_client, data, uid, route)
         if form_data is None or not should_upload_to_UKC(visibility, activity_visibility):
             delete = True
         elif UKC_id:
@@ -466,7 +467,7 @@ def send_entry_to_UKC(auth_code, form_data):
 
     return response
 
-def get_form_data_for_activity(firestore_client, data, uid):
+def get_form_data_for_activity(firestore_client, data, uid, route):
     # TODO: respect stats_visibility privacy settings
     activity_id = data.get("object_id")
     activity = get_activity_from_strava(firestore_client, uid, activity_id)
@@ -503,6 +504,8 @@ def get_form_data_for_activity(firestore_client, data, uid):
         'extra[1040]': f'https://www.strava.com/activities/{activity_id}', # Link to activity
         'update': 'Add entry',
     }
+    if route:
+        form_data['kml'] = get_activity_kml(firestore_client, uid, activity_id)
     return form_data, activity["visibility"]
 
 def map_type(strava_type, distance):
@@ -630,6 +633,21 @@ def getNewAccessToken(athleteID, refresh_token):
     updateAthleteAuthInFirestore(access_token,refresh_token,expires_at,athleteID)
     return access_token
 
+def get_activity_kml(firestore_client, athleteID, activityID):
+    access_token = getAthleteAccessToken(firestore_client, athleteID)
+    strava_request = requests.get(
+        "https://www.strava.com/api/v3/activities/"+str(activityID)+"/streams?keys=distance,latlng,altitude&key_by_type=true",
+        params={
+            "Authorization": "Bearer",
+            "access_token": access_token,
+        }
+    )
+    data = strava_request.json()
+    min_length = min(len(data['latlng']['data']), len(data['altitude']['data']), len(data['distance']['data']))
+    UKC_data = ''
+    for i in range(min_length):
+        UKC_data += f"{data['latlng']['data'][i][0]},{data['latlng']['data'][i][1]},{data['distance']['data'][i]},{data['altitude']['data'][i]}\n"
+    return UKC_data
 
 ###############################
 #                             #
