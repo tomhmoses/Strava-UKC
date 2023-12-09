@@ -695,3 +695,11 @@ def disable_auto_upload(req: https_fn.CallableRequest) -> dict:
     auth_ref.delete()
     # return success
     return {'success': True}
+
+@https_fn.on_call(region="europe-west2")
+def enable_gpx_upload(req: https_fn.CallableRequest) -> dict:
+    return {'success': False, 'error': 'Not implemented yet.'}
+
+@https_fn.on_call(region="europe-west2")
+def disable_gpx_upload(req: https_fn.CallableRequest) -> dict:
+    return {'success': False, 'error': 'Not implemented yet.'}
