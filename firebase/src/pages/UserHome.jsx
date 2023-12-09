@@ -16,6 +16,7 @@ const UserHome = (props) => {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [switchLoading, setSwitchLoading] = useState(false);
+  const [gpxSwitchLoading, setGPXSwitchLoading] = useState(false);
 
   const [error, setError] = useState('');
   const [modalSubmitLoading, setModalSubmitLoading] = useState(false);
@@ -64,13 +65,16 @@ const UserHome = (props) => {
   // const [autoUpload, setAutoUpload] = useState(data?.auto_upload || false);
   const onToggle = (changedValues, allValues) => {
     // This should open the modal to set up UKC account if changed to true
+    console.log('changed values');
     console.log(changedValues);
+    console.log('all values');
     console.log(allValues);
-    if (allValues.ukcAutoUpload) {
+    // if changedValues contains ukcAutoUpload and is changed to true
+    if ('ukcAutoUpload' in changedValues && changedValues.ukcAutoUpload === true){
       console.log("open modal");
       setModalVisible(true);
       setSwitchLoading(true);
-    } else {
+    } else if ('ukcAutoUpload' in changedValues && changedValues.ukcAutoUpload === false) {
       setSwitchLoading(true);
       // call firebase function to remove UKC username and password
       const disableUpload = httpsCallable(props.functions,'disable_auto_upload');
@@ -81,6 +85,42 @@ const UserHome = (props) => {
           console.log("success");
           setSwitchLoading(false);
           message.success('UKC auto upload disabled and login authentication deleted');
+        }
+      });
+    }
+    if ('uploadGPX' in changedValues && changedValues.uploadGPX === true){
+      console.log("upload GPX");
+      setGPXSwitchLoading(true);
+      // call firebase function to remove UKC username and password
+      const enableGPXUpload = httpsCallable(props.functions,'enable_gpx_upload');
+      enableGPXUpload().then((result) => {
+        console.log(result.data);
+        if (result.data.success) {
+          // show success message
+          console.log("success");
+          setGPXSwitchLoading(false);
+          message.success('GPX upload enabled');
+        } else if (result.data.error === "Must be UKC Supporter to upload GPX.") {
+          // show error message
+          console.log("Must be UKC Supporter to upload GPX.");
+          // show this in the model
+          setError("The username or password is incorrect.");
+          setGPXSwitchLoading(false);
+          // set switch back to false
+          form.setFieldsValue({uploadGPX: false});
+          message.error('You must be a UKC Supporter to upload GPX.');
+        }
+      });
+    } else if ('uploadGPX' in changedValues && changedValues.uploadGPX === false) {
+      setGPXSwitchLoading(true);
+      // call firebase function to remove UKC username and password
+      const disableGPXUpload = httpsCallable(props.functions,'disable_gpx_upload');
+      disableGPXUpload().then((result) => {
+        console.log(result.data);
+        if (result.data.success) {
+          // show success message
+          setGPXSwitchLoading(false);
+          message.success('GPX upload disabled');
         }
       });
     }
@@ -123,9 +163,20 @@ const UserHome = (props) => {
             initialValue={data?.auto_upload || false}
             
           >
-            {/* set loading if modal is open */}
             <Switch loading={switchLoading} />
           </Form.Item>
+          {data.auto_upload &&
+            // switch for GPX upload
+            <Form.Item 
+              label="Upload GPX to UKC"
+              name="uploadGPX"
+              valuePropName="checked"
+              initialValue={data?.upload_gpx || false}
+            >
+              <Switch loading={gpxSwitchLoading}/>
+            </Form.Item>
+          }
+
         </Form>
         {data.auto_upload && 
           <Paragraph>
