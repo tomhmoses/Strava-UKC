@@ -1,4 +1,4 @@
-import { HomeTwoTone, EditTwoTone, CheckCircleTwoTone } from '@ant-design/icons';
+import { HomeTwoTone, CheckCircleTwoTone } from '@ant-design/icons';
 import { Menu } from 'antd';
 import { useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
@@ -8,7 +8,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 
 
 
-const Header = () => {
+const AppHeader = () => {
   const [current, setCurrent] = useState('h');
   const onClick = (e) => {
     console.log('click ', e);
@@ -29,11 +29,6 @@ const Header = () => {
       <Menu.Item key="h" icon= {<HomeTwoTone />}>
        <Link to="/">Home</Link>
       </Menu.Item>
-      {!loading && !error && !user &&
-        <Menu.Item key="l" icon= {<CheckCircleTwoTone />}>
-          <Link to="/api/authorize_strava">Login</Link>
-        </Menu.Item>
-      }
       {!loading && !error && user &&
         <Menu.Item key="l" icon= {<CheckCircleTwoTone />} onClick={logout}>
           <Link to="/">Logout</Link>
@@ -45,4 +40,4 @@ const Header = () => {
    
   )
 };
-export default Header;
+export default AppHeader;

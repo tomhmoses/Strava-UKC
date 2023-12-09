@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { Typography, Form, Input, Switch, Button } from 'antd';
+import { Typography, Form, Switch, message } from 'antd';
+
 import { doc } from 'firebase/firestore';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
 import SetUpUKC from '../components/SetUpUKC';
@@ -36,6 +37,7 @@ const UserHome = (props) => {
       if (result.data.success) {
         // show success message
         console.log("success");
+        message.success('UKC account connected successfully');
         setModalSubmitLoading(false);
         setModalVisible(false);
         setSwitchLoading(false);
@@ -78,12 +80,7 @@ const UserHome = (props) => {
           // show success message
           console.log("success");
           setSwitchLoading(false);
-        } else if (result.data.error === "Incorrect UKC username or password.") {
-          // show error message
-          console.log("wrong username or password");
-          // show this in the model
-          setError("The username or password is incorrect.");
-          setModalSubmitLoading(false);
+          message.success('UKC auto upload disabled and login authentication deleted');
         }
       });
     }
@@ -92,7 +89,6 @@ const UserHome = (props) => {
 
   return (
     <>
-    <Title level={1}>Home</Title>
     {!data && <Title level={3}>Loading account data...</Title>}
     {data &&
       <>
@@ -100,21 +96,15 @@ const UserHome = (props) => {
         {!data.firstname && <Title level={3}>
           User data is incomplete.
         </Title>}
-        {data.firstname && <Title level={3}>Welcome {data.firstname}</Title>}
+        {data.firstname && <Title level={1}>Welcome {data.firstname}</Title>}
         <Paragraph>
-          How does this work? Good question. I'm not sure yet, but it'll probably be something like this:
+          This integration allows you to automatically upload your Strava activities to your UKC/UKH Activity Diary.
         </Paragraph>
         <Paragraph>
-          <ol>
-            <li>Sign in with Strava ✅</li>
-            <li>Any activity updates get sent to this app ✅</li>
-            <li>Choose how you want to filter activities to go to UKC/UKH</li>
-            <li>2 options now:</li>
-            <ul>
-              <li>You can trust this site with your UKC/UKH login detials (they dont have an API 😔) and it can automatically add your activities to your UKC/UKH Activity Dairy (after an optional delay)</li>
-              <li>You can get an export of activties, ready to load into a local script that uploads them to UKC/UKH.</li>
-            </ul>
-          </ol>
+          <ul>
+            <li>You can trust this site with your UKC/UKH login detials (they dont have an API 😔) and public Strava Activities wil be uploaded and updated for you.</li>
+            <li>Or you can get an export of activties, ready to load into a local script that uploads them to UKC/UKH.</li>
+          </ul>
         </Paragraph>
         <Title level={2}>Set up UKC Auto Upload</Title>
         <Paragraph>
@@ -136,7 +126,11 @@ const UserHome = (props) => {
             <Switch loading={switchLoading} />
           </Form.Item>
         </Form>
-
+        {data.auto_upload && 
+          <Paragraph>
+            UKC Auto Upload is enabled. Your public activities on Strava will be uploaded to UKC automatically.
+          </Paragraph>
+        }
       </>
     }
     </>
