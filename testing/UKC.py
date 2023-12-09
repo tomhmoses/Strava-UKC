@@ -182,7 +182,7 @@ def upload_activity_with_retry(form_data):
 
 def get_example_form_data():
     return {
-        'name': '',
+        'name': 'Sample with Strava KML',
         'activity': '4',
         'subactivity': '0',
         'timeslot': '1',
@@ -205,7 +205,7 @@ def get_example_form_data():
         'extra[9]': '', # Elevation gain (meters)
         'extra[1040]': 'a', # Link to activity
         'update': 'Add entry',
-        'kml': get_kml(gpx_file),
+        'kml': get_strava_kml(),
         # 'id': '', # Activity ID to update an existing activity
         # 'delete': 'Delete from diary', # Delete an existing activity, must be used with id
     }
@@ -310,6 +310,29 @@ def check_login_for_profile_page(response):
             return True
     return False
 
+
+
+def get_activity_kml(activityID, access_token):
+    # get   'https://www.strava.com/api/v3/activities/123/streams?keys=distance,latlng,altitude&key_by_type=true' \
+    strava_request = requests.get(
+        "https://www.strava.com/api/v3/activities/"+str(activityID)+"/streams?keys=distance,latlng,altitude&key_by_type=true",
+        params={
+            "Authorization": "Bearer",
+            "access_token": access_token,
+        }
+    )
+    data = strava_request.json()
+    # print(data)
+    print(len(data['latlng']['data']))
+    print(len(data['altitude']['data']))
+    print(len(data['distance']['data']))
+    # min of three
+    min_length = min(len(data['latlng']['data']), len(data['altitude']['data']), len(data['distance']['data']))
+    UKC_data = ''
+    for i in range(min_length):
+        UKC_data += f"{data['latlng']['data'][i][0]},{data['latlng']['data'][i][1]},{data['distance']['data'][i]},{data['altitude']['data'][i]}\n"
+    return UKC_data
+
 def main():
     # Form post data extracted from the URL
     form_data = get_example_form_data()
@@ -317,7 +340,13 @@ def main():
     status = upload_activity_with_retry(form_data)
     print(f"Status: {status}")
 
+def get_strava_kml():
+    return get_activity_kml('10336313961', 'nope')
+
 if __name__ == "__main__":
-    # main()
+    main()
     # delete_entry('726263')
-    print(check_user_is_UKC_supporter(None, None))
+    # print(check_user_is_UKC_supporter(None, None))
+    # activityKML = get_strava_kml()
+    # print first 5
+    # print(activityKML.splitlines()[:5])
