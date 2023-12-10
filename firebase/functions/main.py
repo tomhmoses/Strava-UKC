@@ -1,6 +1,6 @@
 # The Cloud Functions for Firebase SDK to create Cloud Functions and set up triggers.
 # Deploy with `firebase deploy`
-from firebase_functions import firestore_fn, https_fn, logger
+from firebase_functions import firestore_fn, https_fn#, logger <-- logger ins't in release version of firebase_functions yet
 from flask import Response, json, redirect
 import urllib.parse
 import requests
@@ -12,6 +12,12 @@ from bs4 import BeautifulSoup
 from firebase_admin import initialize_app, firestore, auth
 import google.cloud.firestore
 from os import getenv
+
+import logging
+
+logger = logging.getLogger('cloudfunctions.googleapis.com%2Fcloud-functions')
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler())
 
 app = initialize_app()
 
