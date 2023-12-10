@@ -305,18 +305,17 @@ def upload_entry_to_UKC(firestore_client, data, uid, visibility='everyone', rout
     response = send_entry_to_UKC(auth_code, form_data)
     error = ''
     if response.status_code == 200:
-        # Extract and print the page title
+        # Extract the page title
         page_title = get_page_title(response)
-        # logger.debug(f"Page Title: {page_title}")
 
         # Check if auth didn't work
         if 'Login' in page_title:
-            logger.log("Login required. Obtaining a new auth code.")
+            logger.info("Login required. Obtaining a new auth code.")
 
             # Obtain a new auth code
             auth_code = get_new_UKC_auth_code(firestore_client, uid)
 
-            logger.log("New auth code saved. Reattempting activity submission.")
+            logger.info("New auth code saved. Reattempting activity submission.")
 
             # Retry activity submission with the new auth code
             response = send_entry_to_UKC(auth_code, form_data)
@@ -326,13 +325,13 @@ def upload_entry_to_UKC(firestore_client, data, uid, visibility='everyone', rout
                 error = "Login failed a 2nd time."
                 logger.error("Login failed a 2nd time. Error submitting activity.")
             elif response.status_code == 200:
-                logger.log("Activity submitted successfully after retry.")
+                logger.info("Activity submitted successfully after retry.")
             else:
                 error = f"Error submitting activity after retry. Status code: {response.status_code}"
                 logger.error(f"Error submitting activity after retry. Status code: {response.status_code}")
                 logger.error(response.text)
         else:
-            logger.log("Activity submitted successfully.")
+            logger.info("Activity submitted successfully.")
     else:
         error = f"Error submitting activity. Status code: {response.status_code}"
         logger.error(f"Error submitting activity. Status code: {response.status_code}")
@@ -431,7 +430,7 @@ def get_new_UKC_auth_code(firestore_client, uid, username=None, password=None):
 
     wrong_password_text = 'The password or username/email you entered is invalid'
     if wrong_password_text in response.text:
-        logger.warn("Wrong password entered.")
+        logger.warning("Wrong password entered.")
         # throw exception
         auth_ref.delete()
         # update user doc to turn off auto upload and add error message of incorrect UKC password
@@ -474,7 +473,7 @@ def get_form_data_for_activity(firestore_client, data, uid, route):
     activity_id = data.get("object_id")
     activity = get_activity_from_strava(firestore_client, uid, activity_id)
     if activity is None:
-        return None
+        return None, None
     # print('activity', activity)
     entry_type = map_type(activity["sport_type"], activity["distance"])
     start_time = datetime.strptime(activity["start_date_local"], "%Y-%m-%dT%H:%M:%SZ")
@@ -645,7 +644,10 @@ def get_activity_kml(firestore_client, athleteID, activityID):
         }
     )
     data = strava_request.json()
-    min_length = min(len(data['latlng']['data']), len(data['altitude']['data']), len(data['distance']['data']))
+    try:
+        min_length = min(len(data['latlng']['data']), len(data['altitude']['data']), len(data['distance']['data']))
+    except KeyError:
+        return ''
     UKC_data = ''
     for i in range(min_length):
         UKC_data += f"{data['latlng']['data'][i][0]},{data['latlng']['data'][i][1]},{data['distance']['data'][i]},{data['altitude']['data'][i]}\n"
