@@ -1,11 +1,12 @@
 # The Cloud Functions for Firebase SDK to create Cloud Functions and set up triggers.
 # Deploy with `firebase deploy`
-from firebase_functions import firestore_fn, https_fn
+from firebase_functions import firestore_fn, https_fn, logger
 from flask import Response, json, redirect
 import urllib.parse
 import requests
 from datetime import datetime
 from bs4 import BeautifulSoup
+
 
 # The Firebase Admin SDK to access Cloud Firestore.
 from firebase_admin import initialize_app, firestore, auth
@@ -139,7 +140,6 @@ def verify_authorization(request):
     return redirect(front_end_url)
 
 def updateAthleteInFirestore(athlete):
-    print('athlete', athlete)
     db = firestore.client()
     athlete_ref = db.collection(u'users').document(str(athlete["id"]))
     athlete_ref.set({
@@ -214,12 +214,10 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
     user_ref = firestore_client.collection(u'users').document(str(uid))
     user_doc = user_ref.get()
     if not user_doc.exists:
-        print("user does not exist, deleting update")
         update_ref.delete()
         return
     user_data = user_doc.to_dict()
     if not "auto_upload" in user_data or not user_doc.get("auto_upload"):
-        print("auto upload not enabled, deleting update")
         update_ref.delete()
         return
     visibility = user_data.get("auto_upload_visibility", "everyone")
@@ -295,7 +293,7 @@ def upload_entry_to_UKC(firestore_client, data, uid, visibility='everyone', rout
             'id': UKC_id,
             'delete': 'Delete from diary',
         }
-    print('form_data', form_data)
+    # print('form_data', form_data)
     # first try with existing auth code
     auth_code = get_UKC_auth_code(firestore_client, uid)
     response = send_entry_to_UKC(auth_code, form_data)
@@ -303,16 +301,16 @@ def upload_entry_to_UKC(firestore_client, data, uid, visibility='everyone', rout
     if response.status_code == 200:
         # Extract and print the page title
         page_title = get_page_title(response)
-        print(f"Page Title: {page_title}")
+        # logger.debug(f"Page Title: {page_title}")
 
         # Check if auth didn't work
         if 'Login' in page_title:
-            print("Login required. Obtaining a new auth code.")
+            logger.log("Login required. Obtaining a new auth code.")
 
             # Obtain a new auth code
             auth_code = get_new_UKC_auth_code(firestore_client, uid)
 
-            print("New auth code saved. Reattempting activity submission.")
+            logger.log("New auth code saved. Reattempting activity submission.")
 
             # Retry activity submission with the new auth code
             response = send_entry_to_UKC(auth_code, form_data)
@@ -320,19 +318,19 @@ def upload_entry_to_UKC(firestore_client, data, uid, visibility='everyone', rout
             # Check the response after retry
             if 'Login' in get_page_title(response):
                 error = "Login failed a 2nd time."
-                print("Login failed a 2nd time. Error submitting activity.")
+                logger.error("Login failed a 2nd time. Error submitting activity.")
             elif response.status_code == 200:
-                print("Activity submitted successfully after retry.")
+                logger.log("Activity submitted successfully after retry.")
             else:
                 error = f"Error submitting activity after retry. Status code: {response.status_code}"
-                print(f"Error submitting activity after retry. Status code: {response.status_code}")
-                print(response.text)
+                logger.error(f"Error submitting activity after retry. Status code: {response.status_code}")
+                logger.error(response.text)
         else:
-            print("Activity submitted successfully.")
+            logger.log("Activity submitted successfully.")
     else:
         error = f"Error submitting activity. Status code: {response.status_code}"
-        print(f"Error submitting activity. Status code: {response.status_code}")
-        print(response.text)
+        logger.error(f"Error submitting activity. Status code: {response.status_code}")
+        logger.error(response.text)
     if error != '':
         return 'error', error
     # analyse response
@@ -356,9 +354,7 @@ def upload_entry_to_UKC(firestore_client, data, uid, visibility='everyone', rout
         return 'error', 'No UKC_id returned'
 
 def get_page_title(response):
-    # Parse the HTML content of the response
     soup = BeautifulSoup(response.content, 'html.parser')
-    # Extract and print the page title
     page_title = soup.title.string if soup.title else 'No title found'
     return page_title
 
@@ -429,7 +425,7 @@ def get_new_UKC_auth_code(firestore_client, uid, username=None, password=None):
 
     wrong_password_text = 'The password or username/email you entered is invalid'
     if wrong_password_text in response.text:
-        print("Wrong password entered.")
+        logger.warn("Wrong password entered.")
         # throw exception
         auth_ref.delete()
         # update user doc to turn off auto upload and add error message of incorrect UKC password
@@ -447,7 +443,7 @@ def get_new_UKC_auth_code(firestore_client, uid, username=None, password=None):
             return cookie.value
         
     # If no ukcsid cookie was found, return None
-    print("No ukcsid cookie found.")
+    logger.error("No ukcsid cookie found.")
     raise Exception("Login failed.")
 
 def send_entry_to_UKC(auth_code, form_data):
