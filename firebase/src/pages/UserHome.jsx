@@ -12,7 +12,6 @@ const UserHome = (props) => {
 
   const userRef = doc(props.firestore, "users", props.user.uid);
   const [data] = useDocumentData(userRef);
-  console.log(data);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [switchLoading, setSwitchLoading] = useState(false);
@@ -22,7 +21,6 @@ const UserHome = (props) => {
   const [modalSubmitLoading, setModalSubmitLoading] = useState(false);
 
   const onCreate = async (values) => {
-    console.log('Received values of form: ', values);
     setError('');
     setModalSubmitLoading(true);
     // call function to set UKC username and password
@@ -34,17 +32,12 @@ const UserHome = (props) => {
     // call firebase function
     const setUpUKCAuth = httpsCallable(props.functions,'set_up_UKC_auth');
     await setUpUKCAuth(values).then((result) => {
-      console.log(result.data);
       if (result.data.success) {
-        // show success message
-        console.log("success");
         message.success('UKC account connected successfully');
         setModalSubmitLoading(false);
         setModalVisible(false);
         setSwitchLoading(false);
       } else if (result.data.error === "Incorrect UKC username or password.") {
-        // show error message
-        console.log("wrong username or password");
         // show this in the model
         setError("The username or password is incorrect.");
         setModalSubmitLoading(false);
@@ -61,17 +54,10 @@ const UserHome = (props) => {
   };
 
   const [form] = Form.useForm();
-  // const [username, setUsername] = useState(data?.ukc_username || '');
-  // const [autoUpload, setAutoUpload] = useState(data?.auto_upload || false);
   const onToggle = (changedValues, allValues) => {
     // This should open the modal to set up UKC account if changed to true
-    console.log('changed values');
-    console.log(changedValues);
-    console.log('all values');
-    console.log(allValues);
     // if changedValues contains ukcAutoUpload and is changed to true
     if ('ukcAutoUpload' in changedValues && changedValues.ukcAutoUpload === true){
-      console.log("open modal");
       setModalVisible(true);
       setSwitchLoading(true);
     } else if ('ukcAutoUpload' in changedValues && changedValues.ukcAutoUpload === false) {
@@ -79,44 +65,30 @@ const UserHome = (props) => {
       // call firebase function to remove UKC username and password
       const disableUpload = httpsCallable(props.functions,'disable_auto_upload');
       disableUpload().then((result) => {
-        console.log(result.data);
         if (result.data.success) {
           // show success message
-          console.log("success");
           setSwitchLoading(false);
           message.success('UKC auto upload disabled and login authentication deleted');
         }
       });
     }
     if ('uploadGPX' in changedValues && changedValues.uploadGPX === true){
-      console.log("upload GPX");
       setGPXSwitchLoading(true);
-      // call firebase function to remove UKC username and password
       const enableGPXUpload = httpsCallable(props.functions,'enable_gpx_upload');
       enableGPXUpload().then((result) => {
-        console.log(result.data);
         if (result.data.success) {
-          // show success message
-          console.log("success");
           setGPXSwitchLoading(false);
           message.success('GPX upload enabled');
         } else if (result.data.error === "Must be UKC Supporter to upload GPX.") {
-          // show error message
-          console.log("Must be UKC Supporter to upload GPX.");
-          // show this in the model
-          setError("The username or password is incorrect.");
           setGPXSwitchLoading(false);
-          // set switch back to false
           form.setFieldsValue({uploadGPX: false});
           message.error('You must be a UKC Supporter to upload GPX.');
         }
       });
     } else if ('uploadGPX' in changedValues && changedValues.uploadGPX === false) {
       setGPXSwitchLoading(true);
-      // call firebase function to remove UKC username and password
       const disableGPXUpload = httpsCallable(props.functions,'disable_gpx_upload');
       disableGPXUpload().then((result) => {
-        console.log(result.data);
         if (result.data.success) {
           // show success message
           setGPXSwitchLoading(false);

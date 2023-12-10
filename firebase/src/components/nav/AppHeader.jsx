@@ -11,7 +11,6 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 const AppHeader = () => {
   const [current, setCurrent] = useState('h');
   const onClick = (e) => {
-    console.log('click ', e);
     setCurrent(e.key);
   };
 

@@ -12,13 +12,9 @@ export default function CompleteLogin() {
   const token = urlParams.get('token')
   // if we have a token, login
   if (token) {
-    console.log("token");
-    console.log(token);
     const auth = getAuth();
     signInWithCustomToken(auth, token)
       .then((userCredential) => {
-        console.log("logged in:");
-        console.log(userCredential.user);
         window.history.pushState(null, "", window.location.href.split("?")[0]);
         navigate("/");
       })
