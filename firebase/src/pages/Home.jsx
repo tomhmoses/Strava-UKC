@@ -38,7 +38,7 @@ const Home = (props) => {
     <Layout style={{ minHeight: "100vh" }}>
       <Content style={{ background: 'white' }}>
         <Title level={3}>Strava to UKC</Title>
-        <Paragraph>Connect your Strava account to UKC to automatically upload your public Strava activities to your UKClimbing and UKHillwalking Activity Dairy.</Paragraph>
+        <Paragraph>Connect your Strava account to UKC to automatically upload your public Strava activities to your UKClimbing and UKHillwalking Activity Diary.</Paragraph>
         <a href="/api/authorize_strava">
           <Button
             type="primary"

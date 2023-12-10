@@ -369,7 +369,7 @@ def analyse_upload_response(response):
     for link in soup.find_all('a'):
         if 'Edit entry' in link.text:
             return {'status':'success','id':link['href'].split('=')[1]}
-    # check if entry isn't in this user's dairy ("that entry isn't in your diary")
+    # check if entry isn't in this user's diary ("that entry isn't in your diary")
     if 'that entry isn\'t in your diary' in response.text:
         return {'status':'error','error':'Entry not in this user\'s diary'}
     # search for text within a div with class alert-danger
