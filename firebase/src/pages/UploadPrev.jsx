@@ -217,7 +217,7 @@ const UploadPrev = (props) => {
             <Paragraph>
               {errorText && <Alert message={errorText} type="error" />}
               {errorText && <br />}
-              {(!completed || ((data?.prev_upload_progress || 0) == (data?.prev_upload_goal || 1))) &&
+              {(!completed || ((data?.prev_upload_progress || 0) == (data?.prev_upload_goal || numActivities))) &&
                 <Progress percent={percent} format={() => `${data?.prev_upload_progress} /  ${data?.prev_upload_goal}`}/>
               }
               {!errorText && !completed &&

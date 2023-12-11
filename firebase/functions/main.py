@@ -878,6 +878,9 @@ def preview_previous_activities(req: https_fn.CallableRequest) -> dict:
     )
     strava_request.raise_for_status()
     strava_activities = strava_request.json()
+    user_ref.set({
+        u'prev_upload_goal': len(strava_activities),
+    }, merge=True)
     return {'success': True, 'number': len(strava_activities)}
 
 @https_fn.on_call(
@@ -996,7 +999,7 @@ def process_previous_activities(firestore_client, before, after, uid):
 @firestore_fn.on_document_written(
         document="users/{userID}/uploads/prev_upload",
         region="europe-west2",
-        secrets=["STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET"])
+        secrets=["STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET"],timeout_sec=3600)
 def process_previous_activities_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | None]) -> None:
     # Get the value of "original" if it exists.
     if event.data is None:
