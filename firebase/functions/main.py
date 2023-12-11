@@ -849,13 +849,21 @@ def athlete_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | No
 #                             #
 ###############################
 
-@https_fn.on_call(region="europe-west2")
+@https_fn.on_call(
+        region="europe-west2",
+        secrets=["STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET"])
 def preview_previous_activities(req: https_fn.CallableRequest) -> dict:
     if req.auth is None:
         # Throwing an HttpsError so that the client gets the error details.
         raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
                                 message="The function must be called while authenticated.")
     firestore_client: google.cloud.firestore.Client = firestore.client()
+    # set upload_percent on user doc to 0
+    user_ref = firestore_client.collection(u'users').document(str(req.auth.uid))
+    user_ref.set({
+        u'prev_upload_progress': 0,
+        u'prev_upload_goal': 1,
+    }, merge=True)
     access_token = getAthleteAccessToken(firestore_client, req.auth.uid)
     strava_request = requests.get(
         "https://www.strava.com/api/v3/athlete/activities",
@@ -872,12 +880,18 @@ def preview_previous_activities(req: https_fn.CallableRequest) -> dict:
     strava_activities = strava_request.json()
     return {'success': True, 'number': len(strava_activities)}
 
-@https_fn.on_call(region="europe-west2")
+@https_fn.on_call(
+        region="europe-west2",
+        secrets=["STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET"])
 def upload_previous_activities(req: https_fn.CallableRequest) -> dict:
     if req.auth is None:
         # Throwing an HttpsError so that the client gets the error details.
         raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
                                 message="The function must be called while authenticated.")
+    # before and after params are required
+    if req.data.get("before", None) is None or req.data.get("after", None) is None:
+        raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                                message="The function must be called with before and after arguments.")
     # check if auto upload is enabled for the user
     firestore_client: google.cloud.firestore.Client = firestore.client()
     user_ref = firestore_client.collection(u'users').document(str(req.auth.uid))
@@ -886,6 +900,7 @@ def upload_previous_activities(req: https_fn.CallableRequest) -> dict:
         return {'success': False, 'error': 'User not found'}
     user_data = user_doc.to_dict()
     # if not auto upload, check UKC username and password were provided and are correct
+    user_ref = firestore_client.collection(u'users').document(str(req.auth.uid))
     if not "auto_upload" in user_data or not user_doc.get("auto_upload"):
         # if not, check UKC username and password were provided
         username = req.data.get("ukcUsername")
@@ -902,7 +917,6 @@ def upload_previous_activities(req: https_fn.CallableRequest) -> dict:
                 raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INTERNAL,
                                         message="Error setting up UKC auth.")
         # save username and password in firestore
-        user_ref = firestore_client.collection(u'users').document(str(req.auth.uid))
         auth_ref = user_ref.collection(u'private').document(u'UKC_auth')
         auth_ref.set({
             u'username': username,
@@ -910,11 +924,33 @@ def upload_previous_activities(req: https_fn.CallableRequest) -> dict:
             u'auth_code': auth_code,
         })
 
+    # if numActivities is passed and is more than 5, create a record in firestore to process this transaction
+    if req.data.get("numActivities", 0) > 5:
+        upload_ref = user_ref.collection(u'uploads').document(u'prev_upload')
+        # get doc to check upload is not already in progress
+        upload_doc = upload_ref.get()
+        if upload_doc.exists and upload_doc.get("status") == "processing":
+            return {'success': False, 'error': 'Upload already in progress'}
+        upload_ref.set({
+            u'status': 'new',
+            u'before': req.data.get("before"),
+            u'after': req.data.get("after"),
+        }, merge=True)
+        return {'success': True, 'status': 'processing'}
+    else:
+        return process_previous_activities(firestore_client, req.data.get("before"), req.data.get("after"), req.auth.uid)
+    
+
+def process_previous_activities(firestore_client, before, after, uid):
     # TODO better before and after handling
-    access_token = getAthleteAccessToken(firestore_client, req.auth.uid)
+    user_ref = firestore_client.collection(u'users').document(str(req.auth.uid))
+    user_doc = user_ref.get()
+    user_data = user_doc.to_dict()
+    access_token = getAthleteAccessToken(firestore_client, uid)
     visibility = user_data.get("auto_upload_visibility", "everyone")
     got_all_activities = False
     page = 0
+    all_activities = []
     while not got_all_activities:
         page += 1
         strava_request = requests.get(
@@ -922,24 +958,64 @@ def upload_previous_activities(req: https_fn.CallableRequest) -> dict:
             params={
                 "Authorization": "Bearer",
                 "access_token": access_token,
-                "before": req.data.get("before", None),
-                "after": req.data.get("after", None),
+                "before": before,
+                "after": after,
                 "page": page,
-                "per_page": 2, # max 200 TODO: increase this
+                "per_page": 200,
             }
         )
         strava_request.raise_for_status()
         strava_activities = strava_request.json()
         if len(strava_activities) == 0:
             got_all_activities = True
-        # for each activity in strava, update in UKC
-        for strava_activity in strava_activities:
-            status, error = update_entry(firestore_client, strava_activity, req.auth.uid, visibility, route=False)
-            if status == 'error':
-                return {'success': False, 'error': error}
-
+        else:
+            all_activities += strava_activities
+        # set upload_goal on user doc to len(all_activities)
+        user_ref.set({
+            u'prev_upload_goal': len(all_activities),
+        }, merge=True)
+        
+    # for each activity in strava, update in UKC
+    completed = 0
+    for strava_activity in all_activities:
+        status, error = update_entry(firestore_client, strava_activity, uid, visibility, route=False)
+        if status == 'error':
+            return {'success': False, 'error': error}
+        completed += 1
+        # set prev_upload_progress on user doc
+        user_ref.set({
+            u'prev_upload_progress': completed,
+        }, merge=True)
 
     if not "auto_upload" in user_data or not user_doc.get("auto_upload"):
         # delete auth stuff
+        auth_ref = user_ref.collection(u'private').document(u'UKC_auth')
         auth_ref.delete()
+    
     return {'success': True}
+
+@firestore_fn.on_document_created(
+        document="users/{userID}/uploads/prev_upload",
+        region="europe-west2",
+        secrets=["STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET"])
+def process_previous_activities_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | None]) -> None:
+    # Get the value of "original" if it exists.
+    if event.data is None:
+        return
+    if event.data.get("status") != "new":
+        return
+    # set update_status to processing
+    firestore_client: google.cloud.firestore.Client = firestore.client()
+    update_ref = firestore_client.collection("users").document(event.document.split("/")[-3]).collection("uploads").document("prev_upload")
+    update_ref.set({
+        u'status': 'processing',
+    }, merge=True)
+    # get before and after
+    before = event.data.get("before")
+    after = event.data.get("after")
+    uid = event.document.split("/")[-3]
+    process_previous_activities(firestore_client, before, after, uid)
+    # set update_status to complete
+    update_ref.set({
+        u'status': 'complete',
+    }, merge=True)
