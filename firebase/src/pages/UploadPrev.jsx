@@ -33,7 +33,7 @@ const UploadPrev = (props) => {
   }
 
   const [numActivities, setNumActivities] = useState(0);
-  const percent = data?.upload_percent || 0;
+  const percent = ((data?.prev_upload_progress || 0) / (data?.prev_upload_goal || 1))*100;
 
   const [start, setStart] = useState(0);
   const [end, setEnd] = useState(0);
@@ -64,7 +64,7 @@ const UploadPrev = (props) => {
     const upload_activities = httpsCallable(props.functions, 'upload_previous_activities');
     const ukcUsername = loginForm.getFieldValue('ukcUsername');
     const ukcPassword = loginForm.getFieldValue('ukcPassword');
-    await upload_activities({after: start, before: end, ukcUsername: ukcUsername, ukcPassword: ukcPassword, count: numActivities}).then((result) => {
+    await upload_activities({after: start, before: end, ukcUsername: ukcUsername, ukcPassword: ukcPassword, numActivities: numActivities}).then((result) => {
       // console.log(result.data);
       if (result.data.success) {
         if (result.data.status === 'complete') {
@@ -92,6 +92,7 @@ const UploadPrev = (props) => {
     setStart(0);
     setEnd(0);
     setErrorText('');
+    setCompleted(false);
     form.resetFields();
   };
     
@@ -216,17 +217,17 @@ const UploadPrev = (props) => {
             <Paragraph>
               {errorText && <Alert message={errorText} type="error" />}
               {errorText && <br />}
-              {completed &&<Button type="primary" onClick={reset}>
-                Upload more
-              </Button>}
-              {!errorText && !completed && <>
-                {/* show progress */}
-                <Progress percent={percent} />
+              {(!completed || ((data?.prev_upload_progress || 0) == (data?.prev_upload_goal || 1))) &&
+                <Progress percent={percent} format={() => `${data?.prev_upload_progress} /  ${data?.prev_upload_goal}`}/>
+              }
+              {!errorText && !completed &&
                 <Paragraph>
                   Uploading activities...
                 </Paragraph>
-
-              </>}
+              }
+              {completed &&<Button type="primary" onClick={reset}>
+                Upload more
+              </Button>}
             </Paragraph>
           </>}
         </Content>

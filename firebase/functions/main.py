@@ -942,8 +942,7 @@ def upload_previous_activities(req: https_fn.CallableRequest) -> dict:
     
 
 def process_previous_activities(firestore_client, before, after, uid):
-    # TODO better before and after handling
-    user_ref = firestore_client.collection(u'users').document(str(req.auth.uid))
+    user_ref = firestore_client.collection(u'users').document(str(uid))
     user_doc = user_ref.get()
     user_data = user_doc.to_dict()
     access_token = getAthleteAccessToken(firestore_client, uid)
@@ -994,7 +993,7 @@ def process_previous_activities(firestore_client, before, after, uid):
     
     return {'success': True}
 
-@firestore_fn.on_document_created(
+@firestore_fn.on_document_written(
         document="users/{userID}/uploads/prev_upload",
         region="europe-west2",
         secrets=["STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET"])
@@ -1002,18 +1001,19 @@ def process_previous_activities_trigger(event: firestore_fn.Event[firestore_fn.D
     # Get the value of "original" if it exists.
     if event.data is None:
         return
-    if event.data.get("status") != "new":
+    data = event.data.after.to_dict()
+    if data.get("status") != "new":
         return
     # set update_status to processing
     firestore_client: google.cloud.firestore.Client = firestore.client()
-    update_ref = firestore_client.collection("users").document(event.document.split("/")[-3]).collection("uploads").document("prev_upload")
+    uid = event.params["userID"]
+    update_ref = firestore_client.collection("users").document(uid).collection("uploads").document("prev_upload")
     update_ref.set({
         u'status': 'processing',
     }, merge=True)
     # get before and after
-    before = event.data.get("before")
-    after = event.data.get("after")
-    uid = event.document.split("/")[-3]
+    before = data.get("before")
+    after = data.get("after")
     process_previous_activities(firestore_client, before, after, uid)
     # set update_status to complete
     update_ref.set({
