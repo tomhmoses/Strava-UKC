@@ -25,9 +25,14 @@ const Home = (props) => {
   }
   if (user) {
     return (
-      <Layout style={{ minHeight: "100vh" }}>
+      <Layout style={{ minHeight: "100vh", background: 'white'}}>
         <AppHeader />
-        <Content style={{ background: 'white' }}>
+        <Content style={{
+          padding: 12,
+          margin: 'auto',
+          width: '100%',
+          maxWidth: 800,
+        }}>
           <UserHome firestore={props.firestore} functions={props.functions} user={user}/>
         </Content>
         <AppFooter />
@@ -35,8 +40,13 @@ const Home = (props) => {
     )
   }
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      <Content style={{ background: 'white' }}>
+    <Layout style={{ minHeight: "100vh", background: 'white'}}>
+      <Content style={{
+          padding: 12,
+          margin: 'auto',
+          width: '100%',
+          maxWidth: 800,
+        }}>
         <Title level={3}>Strava to UKC</Title>
         <Paragraph>Connect your Strava account to UKC to automatically upload your public Strava activities to your UKClimbing and UKHillwalking Activity Diary.</Paragraph>
         <a href="/api/authorize_strava">

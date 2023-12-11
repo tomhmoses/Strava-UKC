@@ -496,20 +496,22 @@ def get_form_data_for_activity(firestore_client, data, uid, route):
         'duration_sec': duration_sec,
         'distance': str(round(activity["distance"]/1000,4)), # Distance in km
         'km': '1', # km as unit
-        'description': activity["description"],
-        'extra[0]': '',
-        'extra[1]': activity.get("average_heartrate",''), # Heart rate (average bmp)
-        'extra[2]': '', # Body weight (kg)
-        'extra[3]': '', # Body fat (%)
-        'extra[4]': activity.get("calories",''), # Calories
-        'extra[5]': activity.get("average_cadence",''), # Cadence (average per minute)
-        'extra[6]': activity.get("gear",{"name":''})["name"], # Shoes
-        'extra[7]': '', # Laps TODO: add laps
-        'extra[8]': '', # Intensity (1-5) TODO: add intensity (perhaps suffer_score)
+        'description': activity.get("description",'NoneTM'), # Description
+        # 'extra[0]': '',
+        'extra[1]': activity.get("average_heartrate",'NoneTM'), # Heart rate (average bmp)
+        # 'extra[2]': '', # Body weight (kg)
+        # 'extra[3]': '', # Body fat (%)
+        'extra[4]': activity.get("calories",'NoneTM'), # Calories
+        'extra[5]': activity.get("average_cadence",'NoneTM'), # Cadence (average per minute)
+        'extra[6]': activity.get("gear",{"name":'NoneTM'})["name"], # Shoes
+        # 'extra[7]': '', # Laps TODO: add laps
+        # 'extra[8]': '', # Intensity (1-5) TODO: add intensity (perhaps suffer_score)
         'extra[9]': activity["total_elevation_gain"], # Elevation gain (meters)
         'extra[1040]': f'https://www.strava.com/activities/{activity_id}', # Link to activity
         'update': 'Add entry',
     }
+    # for each item in the dict, if value is NoneTM, remove the item
+    form_data = {k: v for k, v in form_data.items() if v != 'NoneTM'}
     if route:
         form_data['kml'] = get_activity_kml(firestore_client, uid, activity_id)
     return form_data, activity["visibility"]
@@ -848,6 +850,29 @@ def athlete_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | No
 ###############################
 
 @https_fn.on_call(region="europe-west2")
+def preview_previous_activities(req: https_fn.CallableRequest) -> dict:
+    if req.auth is None:
+        # Throwing an HttpsError so that the client gets the error details.
+        raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
+                                message="The function must be called while authenticated.")
+    firestore_client: google.cloud.firestore.Client = firestore.client()
+    access_token = getAthleteAccessToken(firestore_client, req.auth.uid)
+    strava_request = requests.get(
+        "https://www.strava.com/api/v3/athlete/activities",
+        params={
+            "Authorization": "Bearer",
+            "access_token": access_token,
+            "before": req.data.get("before", None),
+            "after": req.data.get("after", None),
+            "page": 1,
+            "per_page": 200, # max 200 TODO: increase this
+        }
+    )
+    strava_request.raise_for_status()
+    strava_activities = strava_request.json()
+    return {'success': True, 'number': len(strava_activities)}
+
+@https_fn.on_call(region="europe-west2")
 def upload_previous_activities(req: https_fn.CallableRequest) -> dict:
     if req.auth is None:
         # Throwing an HttpsError so that the client gets the error details.
@@ -863,11 +888,11 @@ def upload_previous_activities(req: https_fn.CallableRequest) -> dict:
     # if not auto upload, check UKC username and password were provided and are correct
     if not "auto_upload" in user_data or not user_doc.get("auto_upload"):
         # if not, check UKC username and password were provided
-        username = req.data.get("username")
-        password = req.data.get("password")
+        username = req.data.get("ukcUsername")
+        password = req.data.get("ukcPassword")
         if username is None or password is None:
             raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
-                                    message="The function must be called with username and password arguments if Auto Upload is not enabled.")
+                                    message="The function must be called with ukcUsername and ukcPassword arguments if Auto Upload is not enabled.")
         try:
             auth_code = get_new_UKC_auth_code(firestore_client, req.auth.uid, username, password)
         except Exception as e:

@@ -1,4 +1,4 @@
-import { HomeTwoTone, CheckCircleTwoTone } from '@ant-design/icons';
+import { HomeTwoTone, CheckCircleTwoTone, ClockCircleTwoTone } from '@ant-design/icons';
 import { Menu } from 'antd';
 import { useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
@@ -8,8 +8,8 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 
 
 
-const AppHeader = () => {
-  const [current, setCurrent] = useState('h');
+const AppHeader = (props) => {
+  const [current, setCurrent] = useState(props.current? props.current : 'h');
   const onClick = (e) => {
     setCurrent(e.key);
   };
@@ -28,6 +28,11 @@ const AppHeader = () => {
       <Menu.Item key="h" icon= {<HomeTwoTone />}>
        <Link to="/">Home</Link>
       </Menu.Item>
+      {!loading && !error && user &&
+        <Menu.Item key="u" icon= {<ClockCircleTwoTone />}>
+          <Link to="/upload-previous">Upload previous activities</Link>
+        </Menu.Item>
+      }
       {!loading && !error && user &&
         <Menu.Item key="l" icon= {<CheckCircleTwoTone />} onClick={logout}>
           <Link to="/">Logout</Link>

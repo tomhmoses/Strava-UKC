@@ -2,6 +2,7 @@ import React from 'react';
 import { Route, createBrowserRouter, createRoutesFromElements, RouterProvider } from 'react-router-dom';
 import Home from './pages/Home';
 import CompleteLogin from './pages/auth/CompleteLogin';
+import UploadPrev from './pages/UploadPrev';
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
@@ -28,13 +29,14 @@ const analytics = getAnalytics(app);
 const firestore = getFirestore(app);
 const functions = getFunctions(app, 'europe-west2');
 
-
+// TODO: implement useAuthState here and put nav in route element.
 
 
 const router = createBrowserRouter(
   createRoutesFromElements(
     <Route path="/">
       <Route index element={<Home firestore={firestore} functions={functions}/>} />
+      <Route path='upload-previous' element={<UploadPrev firestore={firestore} functions={functions}/>} />
       <Route path="completelogin" element={<CompleteLogin />} />
       <Route path="*" element={<h1>Not Found</h1>} />
     </Route>
