@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Typography, Form, Layout, Button, Alert, DatePicker, Steps, Space, message, Input } from 'antd';
+import { Typography, Form, Layout, Button, Alert, DatePicker, Steps, Space, message, Input, Progress } from 'antd';
 import { getAuth } from "firebase/auth";
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc } from 'firebase/firestore';
@@ -27,8 +27,13 @@ const UploadPrev = (props) => {
   const [loginForm] = Form.useForm();
   const [current, setCurrent] = useState(0);
   const [buttonLoading, setButtonLoading] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  if (current == 2 && (data?.prev_upload_progress || 0) == (data?.prev_upload_goal || 1) && !completed) {
+    setCompleted(true);
+  }
 
   const [numActivities, setNumActivities] = useState(0);
+  const percent = data?.upload_percent || 0;
 
   const [start, setStart] = useState(0);
   const [end, setEnd] = useState(0);
@@ -59,10 +64,12 @@ const UploadPrev = (props) => {
     const upload_activities = httpsCallable(props.functions, 'upload_previous_activities');
     const ukcUsername = loginForm.getFieldValue('ukcUsername');
     const ukcPassword = loginForm.getFieldValue('ukcPassword');
-    await upload_activities({after: start, before: end, ukcUsername: ukcUsername, ukcPassword: ukcPassword}).then((result) => {
+    await upload_activities({after: start, before: end, ukcUsername: ukcUsername, ukcPassword: ukcPassword, count: numActivities}).then((result) => {
       // console.log(result.data);
       if (result.data.success) {
-        message.success('Activities uploaded successfully');
+        if (result.data.status === 'complete') {
+          setCompleted(true);
+        }
       } else {
         message.error('There was an error uploading your activities.');
         setErrorText(result.data.error);
@@ -140,7 +147,7 @@ const UploadPrev = (props) => {
           <br />
           <br />
           <Paragraph>
-            <Steps current={current} items={stepItems} status={(current==2)? (errorText? 'error': 'finish'): 'process'}/>
+            <Steps current={current} items={stepItems} status={(completed)? 'finish' : (errorText? 'error': 'process')}/>
           </Paragraph>
           {current === 0 && 
             <Form 
@@ -209,9 +216,17 @@ const UploadPrev = (props) => {
             <Paragraph>
               {errorText && <Alert message={errorText} type="error" />}
               {errorText && <br />}
-              <Button type="primary" onClick={reset}>
+              {completed &&<Button type="primary" onClick={reset}>
                 Upload more
-              </Button>
+              </Button>}
+              {!errorText && !completed && <>
+                {/* show progress */}
+                <Progress percent={percent} />
+                <Paragraph>
+                  Uploading activities...
+                </Paragraph>
+
+              </>}
             </Paragraph>
           </>}
         </Content>
