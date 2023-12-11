@@ -132,13 +132,6 @@ const UploadPrev = (props) => {
           <Typography>
             <Title>Upload previous activities</Title>
             <Paragraph>
-              <Alert
-                message="This feature is in beta. Please report any bugs."
-                type="warning"
-                showIcon
-              />
-            </Paragraph>
-            <Paragraph>
               This page allows you to upload/update any activities from Strava in a given date range to your UKC Activity Diary.
             </Paragraph>
             <Paragraph>
