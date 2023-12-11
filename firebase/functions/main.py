@@ -66,6 +66,7 @@ def activity(req: https_fn.Request) -> https_fn.Response:
     data=req.json
     data["update_received_date"] = firestore.SERVER_TIMESTAMP
     data["update_status"] = "new"
+    data["event_time"] = datetime.fromtimestamp(req.json["event_time"])
     firestore_client.collection("activity-updates").add(data)
     return https_fn.Response("Activity update received.", status=200)
 
@@ -75,6 +76,7 @@ def athlete(req: https_fn.Request) -> https_fn.Response:
     data=req.json
     data["update_received_date"] = firestore.SERVER_TIMESTAMP
     data["update_status"] = "new"
+    data["event_time"] = datetime.fromtimestamp(req.json["event_time"])
     firestore_client.collection("athlete-updates").add(data)
     return https_fn.Response("Athlete update received.", status=200)
 
@@ -248,8 +250,7 @@ def create_entry(firestore_client, data, uid, visibility, route):
     return upload_entry_to_UKC(firestore_client, data, uid, visibility, route)
 
 def update_entry(firestore_client, data, uid, visibility, route):
-    # Check if activity is already in firestore
-    activity_id = data.get("object_id")
+    activity_id = data.get("object_id", data.get("id"))
     activity_ref = firestore_client.collection(u'users').document(str(uid)).collection(u'activities').document(str(activity_id))
     activity_doc = activity_ref.get()
     if not activity_doc.exists:
@@ -345,7 +346,7 @@ def upload_entry_to_UKC(firestore_client, data, uid, visibility='everyone', rout
     if analysis['status'] == 'error':
         return 'error', analysis['error']
     if UKC_id:
-        activity_id = data.get("object_id")
+        activity_id = data.get("object_id", data.get("id"))
         activity_ref = firestore_client.collection(u'users').document(str(uid)).collection(u'activities').document(str(activity_id))
         if delete:
             activity_ref.delete()
@@ -470,9 +471,13 @@ def send_entry_to_UKC(auth_code, form_data):
 
 def get_form_data_for_activity(firestore_client, data, uid, route):
     # TODO: respect stats_visibility privacy settings
-    activity_id = data.get("object_id")
-    activity = get_activity_from_strava(firestore_client, uid, activity_id)
-    if activity is None:
+    activity_id = data.get("object_id", None)
+    if activity_id is not None:
+        activity = get_activity_from_strava(firestore_client, uid, activity_id)
+    else:
+        activity_id = data.get("id", None)
+        activity = data
+    if activity is None or activity_id is None:
         return None, None
     # print('activity', activity)
     entry_type = map_type(activity["sport_type"], activity["distance"])
@@ -792,3 +797,124 @@ def check_login_for_profile_page(response):
         if 'href' in link.attrs and link['href'] == '/user/options.php?logout=1':
             return True
     return False
+
+###############################
+#                             #
+# Trigger on Athlete          #
+#                             #
+###############################
+
+firestore_fn.on_document_created(
+        document="athlete-updates/{pushId}",
+        secrets=["STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET"],
+        region="europe-west2")
+def athlete_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | None]) -> None:
+    # Get the value of "original" if it exists.
+    if event.data is None:
+        return
+    if event.data.get("update_status") != "new":
+        return
+    # set update_status to processing
+    firestore_client: google.cloud.firestore.Client = firestore.client()
+    update_ref = firestore_client.collection("athlete-updates").document(event.document.split("/")[-1])
+    update_ref.set({
+        u'update_status': 'processing',
+    }, merge=True)
+
+    # Check if auto upload is enabled for the user
+    uid = event.data.get("owner_id")
+    user_ref = firestore_client.collection(u'users').document(str(uid))
+    user_doc = user_ref.get()
+    if not user_doc.exists:
+        update_ref.delete()
+        return
+    
+    # If authorized: "false" is in the event updates, then delete auth stuff
+    if event.data.get("updates", {}).get("authorized", None) == "false":
+        private_ref = user_ref.collection(u'private')
+        private_ref.delete()
+        user_ref.set({
+            u'auto_upload': False,
+            u'auto_upload_error': 'Strava authorization revoked',
+        }, merge=True)
+        update_ref.delete()
+        return
+
+
+###############################
+#                             #
+# Upload Previous Activities  #
+#                             #
+###############################
+
+@https_fn.on_call(region="europe-west2")
+def upload_previous_activities(req: https_fn.CallableRequest) -> dict:
+    if req.auth is None:
+        # Throwing an HttpsError so that the client gets the error details.
+        raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
+                                message="The function must be called while authenticated.")
+    # check if auto upload is enabled for the user
+    firestore_client: google.cloud.firestore.Client = firestore.client()
+    user_ref = firestore_client.collection(u'users').document(str(req.auth.uid))
+    user_doc = user_ref.get()
+    if not user_doc.exists:
+        return {'success': False, 'error': 'User not found'}
+    user_data = user_doc.to_dict()
+    # if not auto upload, check UKC username and password were provided and are correct
+    if not "auto_upload" in user_data or not user_doc.get("auto_upload"):
+        # if not, check UKC username and password were provided
+        username = req.data.get("username")
+        password = req.data.get("password")
+        if username is None or password is None:
+            raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                                    message="The function must be called with username and password arguments if Auto Upload is not enabled.")
+        try:
+            auth_code = get_new_UKC_auth_code(firestore_client, req.auth.uid, username, password)
+        except Exception as e:
+            if str(e) == 'Wrong password entered.':
+                return {'success': False, 'error': 'Incorrect UKC username or password.'}
+            else:
+                raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INTERNAL,
+                                        message="Error setting up UKC auth.")
+        # save username and password in firestore
+        user_ref = firestore_client.collection(u'users').document(str(req.auth.uid))
+        auth_ref = user_ref.collection(u'private').document(u'UKC_auth')
+        auth_ref.set({
+            u'username': username,
+            u'password': password,
+            u'auth_code': auth_code,
+        })
+
+    # TODO better before and after handling
+    access_token = getAthleteAccessToken(firestore_client, req.auth.uid)
+    visibility = user_data.get("auto_upload_visibility", "everyone")
+    got_all_activities = False
+    page = 0
+    while not got_all_activities:
+        page += 1
+        strava_request = requests.get(
+            "https://www.strava.com/api/v3/athlete/activities",
+            params={
+                "Authorization": "Bearer",
+                "access_token": access_token,
+                "before": req.data.get("before", None),
+                "after": req.data.get("after", None),
+                "page": page,
+                "per_page": 2, # max 200 TODO: increase this
+            }
+        )
+        strava_request.raise_for_status()
+        strava_activities = strava_request.json()
+        if len(strava_activities) == 0:
+            got_all_activities = True
+        # for each activity in strava, update in UKC
+        for strava_activity in strava_activities:
+            status, error = update_entry(firestore_client, strava_activity, req.auth.uid, visibility, route=False)
+            if status == 'error':
+                return {'success': False, 'error': error}
+
+
+    if not "auto_upload" in user_data or not user_doc.get("auto_upload"):
+        # delete auth stuff
+        auth_ref.delete()
+    return {'success': True}
