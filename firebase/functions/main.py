@@ -200,7 +200,7 @@ def addmessage(req: https_fn.Request) -> https_fn.Response:
 ###############################
 ###############################
 
-@firestore_fn.on_document_created(
+@firestore_fn.on_document_written(
         document="activity-updates/{pushId}",
         secrets=["STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET"],
         region="europe-west2")
@@ -250,7 +250,7 @@ def create_entry(firestore_client, data, uid, visibility, route):
     return upload_entry_to_UKC(firestore_client, data, uid, visibility, route)
 
 def update_entry(firestore_client, data, uid, visibility, route):
-    activity_id = data.get("object_id", data.get("id"))
+    activity_id = data.get("object_id", data.get("id", None))
     activity_ref = firestore_client.collection(u'users').document(str(uid)).collection(u'activities').document(str(activity_id))
     activity_doc = activity_ref.get()
     if not activity_doc.exists:
@@ -346,7 +346,7 @@ def upload_entry_to_UKC(firestore_client, data, uid, visibility='everyone', rout
     if analysis['status'] == 'error':
         return 'error', analysis['error']
     if UKC_id:
-        activity_id = data.get("object_id", data.get("id"))
+        activity_id = data.get("object_id", data.get("id", None))
         activity_ref = firestore_client.collection(u'users').document(str(uid)).collection(u'activities').document(str(activity_id))
         if delete:
             activity_ref.delete()
