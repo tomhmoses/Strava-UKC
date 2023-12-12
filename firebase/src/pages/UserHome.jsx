@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Typography, Form, Switch, message, Alert } from 'antd';
+import { Typography, Form, Switch, message, Alert, Skeleton } from 'antd';
 
 import { doc } from 'firebase/firestore';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
@@ -101,7 +101,7 @@ const UserHome = (props) => {
 
   return (
     <>
-    {!data && <Title level={3}>Loading account data...</Title>}
+    {!data && <Skeleton active />}
     {data &&
       <>
         <SetUpUKC open={modalVisible} onCreate={onCreate} onCancel={onCancel} defaultUsername={data?.ukc_username || ''} error={error} confirmLoading={modalSubmitLoading} />
@@ -135,7 +135,7 @@ const UserHome = (props) => {
             initialValue={data?.auto_upload || false}
             
           >
-            <Switch loading={switchLoading} />
+            <Switch loading={switchLoading} aria-label='Enable UKC Auto Upload'/>
           </Form.Item>
           {data.auto_upload &&
             // switch for GPX upload
@@ -145,7 +145,7 @@ const UserHome = (props) => {
               valuePropName="checked"
               initialValue={data?.gpx_upload || false}
             >
-              <Switch loading={gpxSwitchLoading}/>
+              <Switch loading={gpxSwitchLoading} aria-label='Upload GPX to UKC'/>
             </Form.Item>
           }
 

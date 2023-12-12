@@ -1,5 +1,5 @@
 import React from 'react'
-import { Typography, Layout, Button, App } from 'antd';
+import { Typography, Layout, Button, Spin } from 'antd';
 import { getAuth } from "firebase/auth";
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc } from 'firebase/firestore';
@@ -18,7 +18,7 @@ const Home = (props) => {
   const [user, loading, error] = useAuthState(auth);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <Spin />;
   }
   if (error) {
     return <div>Error: {JSON.stringify(error)}</div>;
@@ -47,7 +47,7 @@ const Home = (props) => {
           width: '100%',
           maxWidth: 800,
         }}>
-        <Title level={3}>Strava to UKC</Title>
+        <Title level={3}>Strava to UKC Integration</Title>
         <Paragraph>Connect your Strava account to UKC to automatically upload your public Strava activities to your UKClimbing and UKHillwalking Activity Diary.</Paragraph>
         <a href="/api/authorize_strava">
           <Button
@@ -55,7 +55,7 @@ const Home = (props) => {
             href="/api/authorize_strava"
             style={{ background: '#fc4c02', height: 60}}
           >
-            <img src='/btn_strava_connectwith_orange.svg' height={48} />
+            <img src='/btn_strava_connectwith_orange.svg' height={48} alt='Connect with STRAVA' />
           </Button>
         </a>
       </Content>

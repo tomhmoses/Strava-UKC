@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Typography, Form, Layout, Button, Alert, DatePicker, Steps, Space, message, Input, Progress } from 'antd';
+import { Typography, Form, Layout, Button, Alert, DatePicker, Steps, Space, message, Input, Progress, Spin } from 'antd';
 import { getAuth } from "firebase/auth";
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc } from 'firebase/firestore';
@@ -114,7 +114,7 @@ const UploadPrev = (props) => {
 
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <Spin />;
   }
   if (error) {
     return <div>Error: {JSON.stringify(error)}</div>;

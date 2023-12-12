@@ -1,5 +1,6 @@
 import React from 'react';
 import { getAuth, signInWithCustomToken } from "firebase/auth";
+import { Spin } from 'antd';
 import { useNavigate } from "react-router-dom";
 
 
@@ -20,9 +21,5 @@ export default function CompleteLogin() {
       })
   }
 
-  return (
-    <div>
-      <h1>Logging in...</h1>
-    </div>
-  )
+  return (<Spin />)
 }
