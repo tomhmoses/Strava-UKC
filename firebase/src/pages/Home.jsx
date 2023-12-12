@@ -1,6 +1,5 @@
 import React from 'react'
 import { Typography, Layout, Button, Spin } from 'antd';
-import { ApiTwoTone } from '@ant-design/icons';
 import { getAuth } from "firebase/auth";
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc } from 'firebase/firestore';
@@ -48,7 +47,6 @@ const Home = (props) => {
           width: '100%',
           maxWidth: 800,
         }}>
-        <ApiTwoTone />
         <Title level={3}>Strava to UKC Integration</Title>
         <Paragraph>Connect your Strava account to UKC to automatically upload your public Strava activities to your UKClimbing and UKHillwalking Activity Diary.</Paragraph>
         <Button
