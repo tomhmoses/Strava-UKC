@@ -208,7 +208,8 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
     # Get the value of "original" if it exists.
     if event.data is None:
         return
-    if event.data.get("update_status") != "new":
+    data = event.data.after.to_dict()
+    if data.get("update_status") != "new":
         return
     # set update_status to processing
     firestore_client: google.cloud.firestore.Client = firestore.client()
@@ -218,7 +219,7 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
     }, merge=True)
 
     # Check if auto upload is enabled for the user
-    uid = event.data.get("owner_id")
+    uid = data.get("owner_id")
     user_ref = firestore_client.collection(u'users').document(str(uid))
     user_doc = user_ref.get()
     if not user_doc.exists:
@@ -232,10 +233,10 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
     route = user_data.get("gpx_upload", False)
     
     # Check if aspect_type is "create" "update" or "delete"
-    if event.data.get("aspect_type") == "create" or event.data.get("aspect_type") == "update":
-        status, error = update_entry(firestore_client, event.data, uid, visibility, route)
-    elif event.data.get("aspect_type") == "delete":
-        status, error = delete_entry(firestore_client, event.data, uid)
+    if data.get("aspect_type") == "create" or data.get("aspect_type") == "update":
+        status, error = update_entry(firestore_client, data, uid, visibility, route)
+    elif data.get("aspect_type") == "delete":
+        status, error = delete_entry(firestore_client, data, uid)
     else:
         status = 'error'
         error = 'aspect_type not create, update or delete'
