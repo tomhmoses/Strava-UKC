@@ -137,7 +137,6 @@ def verify_authorization(request):
     # generate firebase login token
     firebase_token = auth.create_custom_token(str(athleteID))
     firebase_token_str = str(firebase_token)
-    # TODO: could make this conversion better. Taking off first 2 chars, and last char.
     firebase_token_str = firebase_token_str[2:-1]
 
     #create redirect string to send back to front end
@@ -874,7 +873,7 @@ def preview_previous_activities(req: https_fn.CallableRequest) -> dict:
             "before": req.data.get("before", None),
             "after": req.data.get("after", None),
             "page": 1,
-            "per_page": 200, # max 200 TODO: increase this
+            "per_page": 200,
         }
     )
     strava_request.raise_for_status()
