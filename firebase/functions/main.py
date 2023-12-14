@@ -208,9 +208,13 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
     if event.data is None:
         return
     data = event.data.after.to_dict()
+    # activity_id = data.get("object_id")
     if data.get("update_status") != "new":
         return
-    # set update_status to processing
+    
+    # set update_status to processing or wait if another update is processing still
+    # TODO: instead add updates to a queue for each activity with 5 second delay. Only add to the queue if it's empty
+    # 5 seconds allows other strava apps/updates to go first, before we push to UKC
     firestore_client: google.cloud.firestore.Client = firestore.client()
     update_ref = firestore_client.collection("activity-updates").document(event.document.split("/")[-1])
     update_ref.set({
@@ -341,7 +345,9 @@ def upload_entry_to_UKC(firestore_client, data, uid, visibility='everyone', rout
         return 'error', error
     # analyse response
     analysis = analyse_upload_response(response)
+    new_upload = False
     if analysis['status'] == 'success' and not UKC_id:
+        new_upload = True
         UKC_id = analysis['id']
     if analysis['status'] == 'error':
         return 'error', analysis['error']
@@ -355,7 +361,7 @@ def upload_entry_to_UKC(firestore_client, data, uid, visibility='everyone', rout
             activity_ref.set({
                 u'UKC_id': UKC_id,
             }, merge=True)
-        return 'success', 'Activity updated in UKC'
+        return 'success', 'Activity uploaded to UKC' if new_upload else 'Activity updated on UKC'
     else:
         return 'error', 'No UKC_id returned'
 
