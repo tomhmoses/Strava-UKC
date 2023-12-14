@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Typography, Form, Switch, message, Alert, Skeleton } from 'antd';
 
 import { doc } from 'firebase/firestore';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
 import SetUpUKC from '../components/SetUpUKC';
 import { httpsCallable } from "firebase/functions";
+import PropTypes from "prop-types";
 
 const { Title, Paragraph } = Typography;
 
@@ -54,7 +55,7 @@ const UserHome = (props) => {
   };
 
   const [form] = Form.useForm();
-  const onToggle = (changedValues, allValues) => {
+  const onToggle = (changedValues) => {
     // This should open the modal to set up UKC account if changed to true
     // if changedValues contains ukcAutoUpload and is changed to true
     if ('ukcAutoUpload' in changedValues && changedValues.ukcAutoUpload === true){
@@ -160,5 +161,11 @@ const UserHome = (props) => {
     </>
   )
 }
+
+UserHome.propTypes = {
+  firestore: PropTypes.object,
+  functions: PropTypes.object,
+  user: PropTypes.object,
+};
 
 export default UserHome

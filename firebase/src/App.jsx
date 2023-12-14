@@ -1,13 +1,16 @@
-import React from 'react';
-import { Route, createBrowserRouter, createRoutesFromElements, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import Home from './pages/Home';
 import CompleteLogin from './pages/auth/CompleteLogin';
 import UploadPrev from './pages/UploadPrev';
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
+// import { getAnalytics } from "firebase/analytics";
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
+import { getAuth, signOut } from "firebase/auth";
+import { useAuthState } from 'react-firebase-hooks/auth';
+import AppTemplate from './components/AppTemplate';
+import ErrorPage from './components/ErrorPage';
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -23,25 +26,36 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+// const analytics = getAnalytics(app);
 const firestore = getFirestore(app);
 const functions = getFunctions(app, 'europe-west2');
 
 // TODO: implement useAuthState here and put nav in route element.
 
 
-const router = createBrowserRouter(
-  createRoutesFromElements(
-    <Route path="/">
-      <Route index element={<Home firestore={firestore} functions={functions}/>} />
-      <Route path='upload-previous' element={<UploadPrev firestore={firestore} functions={functions}/>} />
-      <Route path="completelogin" element={<CompleteLogin />} />
-      <Route path="*" element={<h1>Not Found</h1>} />
-    </Route>
-  )
-)
 
-function App({routes}) {
+function App() {
+
+  const auth = getAuth();
+  const logout = () => {
+    signOut(auth);
+  }
+
+  const [user, loading, error] = useAuthState(auth);
+
+  const router = createBrowserRouter([
+    {
+      path: '/',
+      element: <AppTemplate user={user} logout={logout} />,
+      errorElement: <ErrorPage />,
+      children: [
+        { path: '*', element: <ErrorPage notFound={true} /> },
+        { path: '/', element: <Home firestore={firestore} functions={functions} user={user} loading={loading} error={error}/> },
+        { path: 'upload-previous', element: <UploadPrev firestore={firestore} functions={functions}/> },
+        { path: 'completelogin', element: <CompleteLogin /> }
+      ]
+    }
+  ]);
 
   return (
     <>

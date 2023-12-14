@@ -1,20 +1,15 @@
-import React, { useState } from 'react'
-import { Typography, Form, Layout, Button, Alert, DatePicker, Steps, Space, message, Input, Progress, Spin } from 'antd';
+import { useState } from 'react'
+import { Typography, Form, Button, Alert, DatePicker, Steps, Space, message, Input, Progress, Spin } from 'antd';
 import { getAuth } from "firebase/auth";
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc } from 'firebase/firestore';
 import { useDocumentData } from 'react-firebase-hooks/firestore';
-import AppFooter from '../components/AppFooter';
-import AppHeader from '../components/nav/AppHeader';
 import { httpsCallable } from "firebase/functions";
-
-
-const { Content } = Layout;
+import PropTypes from "prop-types";
+import { json } from "react-router-dom";
 
 const { Title, Paragraph } = Typography;
-
 const { RangePicker } = DatePicker;
-
 
 const UploadPrev = (props) => {
 
@@ -121,115 +116,111 @@ const UploadPrev = (props) => {
   }
   if (user) {
     return (
-      <Layout style={{ minHeight: "100vh", background: 'white'}}>
-        <AppHeader current='u' />
-        <Content style={{
-          padding: 12,
-          margin: 'auto',
-          width: '100%',
-          maxWidth: 800,
-        }}>
-          <Typography>
-            <Title>Upload previous activities</Title>
-            <Paragraph>
-              This page allows you to upload/update any activities from Strava in a given date range to your UKC Activity Diary.
-            </Paragraph>
-            <Paragraph>
-              Some information such as activity description will be set to blank (even if it already exists).
-            </Paragraph>
-          </Typography>
-          <br />
-          <br />
+      <>
+        <Typography>
+          <Title>Upload previous activities</Title>
           <Paragraph>
-            <Steps current={current} items={stepItems} status={(completed)? 'finish' : (errorText? 'error': 'process')}/>
+            This page allows you to upload/update any activities from Strava in a given date range to your UKC Activity Diary.
           </Paragraph>
-          {current === 0 && 
-            <Form 
-              form={form}
-              layout="vertical"
-              onFinish={onNext}
+          <Paragraph>
+            Some information such as activity description will be set to blank (even if it already exists).
+          </Paragraph>
+        </Typography>
+        <br />
+        <br />
+        <Paragraph>
+          <Steps current={current} items={stepItems} status={(completed)? 'finish' : (errorText? 'error': 'process')}/>
+        </Paragraph>
+        {current === 0 && 
+          <Form 
+            form={form}
+            layout="vertical"
+            onFinish={onNext}
+          >
+            <Form.Item
+              name="range"
+              label="Date range"
+              rules={[
+                { required: true, message: 'Please select a date range.' },
+              ]}
             >
-              <Form.Item
-                name="range"
-                label="Date range"
+              <RangePicker />
+            </Form.Item>
+            <Form.Item>
+              <Button type="primary" htmlType="submit" loading={buttonLoading}>
+                Next
+              </Button>
+            </Form.Item>
+          </Form>
+        }
+        {current === 1 && <>
+          <Paragraph>
+            {numActivities}{(numActivities === 200)? '+': ''} activities will be uploaded to UKC.
+          </Paragraph>
+          {!data?.auto_upload && <>
+            <Paragraph>
+              Since you have not enabled auto upload, you will need to provide your UKC login details to upload these activities. They will be deleted after the upload is complete.
+            </Paragraph>
+            <Form
+              layout='vertical'
+              form={loginForm}
+            >
+              <Form.Item 
+                label="UKC Email or Username"
+                name="ukcUsername"
                 rules={[
-                  { required: true, message: 'Please select a date range.' },
+                  { required: true, message: 'Please enter your UKC username.' },
                 ]}
               >
-                <RangePicker />
+                <Input />
               </Form.Item>
-              <Form.Item>
-                <Button type="primary" htmlType="submit" loading={buttonLoading}>
-                  Next
-                </Button>
+              <Form.Item 
+                label="UKC Password"
+                name="ukcPassword"
+                rules={[
+                  { required: true, message: 'Please enter your UKC password.' },
+                ]}
+              >
+                <Input.Password />
               </Form.Item>
             </Form>
-          }
-          {current === 1 && <>
-            <Paragraph>
-              {numActivities}{(numActivities === 200)? '+': ''} activities will be uploaded to UKC.
-            </Paragraph>
-            {!data?.auto_upload && <>
+          </>}
+          <Space direction="horizontal">
+            <Button type="primary" onClick={onConfirm} loading={buttonLoading}>
+              Confirm
+            </Button>
+            <Button onClick={() => setCurrent(0)}>
+              Back
+            </Button>
+          </Space>
+        </>}
+        {current === 2 && <>
+          <Paragraph>
+            {errorText && <Alert message={errorText} type="error" />}
+            {errorText && <br />}
+            {(!completed || ((data?.prev_upload_progress || 0) == (data?.prev_upload_goal || numActivities))) &&
+              <Progress percent={percent} format={() => `${data?.prev_upload_progress} /  ${data?.prev_upload_goal}`}/>
+            }
+            {!errorText && !completed &&
               <Paragraph>
-                Since you have not enabled auto upload, you will need to provide your UKC login details to upload these activities. They will be deleted after the upload is complete.
+                Uploading activities...
               </Paragraph>
-              <Form
-                layout='vertical'
-                form={loginForm}
-              >
-                <Form.Item 
-                  label="UKC Email or Username"
-                  name="ukcUsername"
-                  rules={[
-                    { required: true, message: 'Please enter your UKC username.' },
-                  ]}
-                >
-                  <Input />
-                </Form.Item>
-                <Form.Item 
-                  label="UKC Password"
-                  name="ukcPassword"
-                  rules={[
-                    { required: true, message: 'Please enter your UKC password.' },
-                  ]}
-                >
-                  <Input.Password />
-                </Form.Item>
-              </Form>
-            </>}
-            <Space direction="horizontal">
-              <Button type="primary" onClick={onConfirm} loading={buttonLoading}>
-                Confirm
-              </Button>
-              <Button onClick={() => setCurrent(0)}>
-                Back
-              </Button>
-            </Space>
-          </>}
-          {current === 2 && <>
-            <Paragraph>
-              {errorText && <Alert message={errorText} type="error" />}
-              {errorText && <br />}
-              {(!completed || ((data?.prev_upload_progress || 0) == (data?.prev_upload_goal || numActivities))) &&
-                <Progress percent={percent} format={() => `${data?.prev_upload_progress} /  ${data?.prev_upload_goal}`}/>
-              }
-              {!errorText && !completed &&
-                <Paragraph>
-                  Uploading activities...
-                </Paragraph>
-              }
-              {completed &&<Button type="primary" onClick={reset}>
-                Upload more
-              </Button>}
-            </Paragraph>
-          </>}
-        </Content>
-        <AppFooter />
-      </Layout>
+            }
+            {completed &&<Button type="primary" onClick={reset}>
+              Upload more
+            </Button>}
+          </Paragraph>
+        </>}
+      </>
     )
   } else {
-    return 'You must be logged in to view this page.'
+    throw json({message: 'You must be logged in to view this page.'},{status: 401})
   }
 }
+
+UploadPrev.propTypes = {
+  firestore: PropTypes.object,
+  functions: PropTypes.object,
+};
 
 export default UploadPrev
