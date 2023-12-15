@@ -1,6 +1,7 @@
 # The Cloud Functions for Firebase SDK to create Cloud Functions and set up triggers.
 # Deploy with `firebase deploy`
 from firebase_functions import firestore_fn, https_fn#, logger <-- logger ins't in release version of firebase_functions yet
+from firebase_functions.params import StringParam
 from flask import Response, json, redirect
 import urllib.parse
 import requests
@@ -20,6 +21,8 @@ import logging
 logger = logging.getLogger('cloudfunctions.googleapis.com%2Fcloud-functions')
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
+
+ENVIRONMENT = StringParam("ENVIRONMENT", default="dev")
 
 app = initialize_app()
 
@@ -96,9 +99,12 @@ def athlete(req: https_fn.Request) -> https_fn.Response:
         region="europe-west2")
 def authorize_strava(req: https_fn.Request) -> https_fn.Response:
     # FRONT_END_URL should be like https://project-id.web.app
+    base_url = getenv("FRONT_END_URL")
+    if ENVIRONMENT.equals("dev"):
+        base_url = "http://localhost:5003"
     params = {
         "client_id": getenv("STRAVA_CLIENT_ID"),
-        "redirect_uri": getenv("FRONT_END_URL")+"/api/verify_authorization",
+        "redirect_uri": base_url+"/api/verify_authorization",
         "response_type": "code",
         "approval_prompt": "auto",
         "scope": "read,activity:read"
@@ -146,7 +152,10 @@ def verify_authorization(request):
     params= {
         'token': firebase_token_str
     }
-    front_end_url = getenv("FRONT_END_URL")+"/completelogin?" + urllib.parse.urlencode(params)
+    base_url = getenv("FRONT_END_URL")
+    if ENVIRONMENT.equals("dev"):
+        base_url = "http://localhost:5003"
+    front_end_url = base_url+"/completelogin?" + urllib.parse.urlencode(params)
     return redirect(front_end_url)
 
 def updateAthleteInFirestore(athlete):
