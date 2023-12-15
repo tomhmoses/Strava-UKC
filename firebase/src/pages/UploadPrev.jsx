@@ -233,6 +233,14 @@ const UploadPrev = (props) => {
               </Form.Item>
             </Form>
           </>}
+          {data?.auto_upload && <Space direction="horizontal">
+            <Button type="primary" onClick={onConfirm} loading={buttonLoading}>
+              Confirm
+            </Button>
+            <Button htmlType="button" onClick={() => setCurrent(0)}>
+              Back
+            </Button>
+          </Space>}
         </>}
         {current === 1 && numActivities === 0 && <>
           <Paragraph>
@@ -256,6 +264,9 @@ const UploadPrev = (props) => {
             }
             {completed &&<Button type="primary" onClick={reset}>
               Upload more
+            </Button>}
+            {errorText && <Button onClick={reset}>
+              Try again
             </Button>}
           </Paragraph>
         </>}
