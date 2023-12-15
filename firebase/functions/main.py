@@ -100,7 +100,8 @@ def athlete(req: https_fn.Request) -> https_fn.Response:
 def authorize_strava(req: https_fn.Request) -> https_fn.Response:
     # FRONT_END_URL should be like https://project-id.web.app
     base_url = getenv("FRONT_END_URL")
-    if ENVIRONMENT.equals("dev"):
+    if ENVIRONMENT.equals("dev").value:
+        print("dev")
         base_url = "http://localhost:5003"
     params = {
         "client_id": getenv("STRAVA_CLIENT_ID"),
@@ -153,7 +154,7 @@ def verify_authorization(request):
         'token': firebase_token_str
     }
     base_url = getenv("FRONT_END_URL")
-    if ENVIRONMENT.equals("dev"):
+    if ENVIRONMENT.equals("dev").value:
         base_url = "http://localhost:5003"
     front_end_url = base_url+"/completelogin?" + urllib.parse.urlencode(params)
     return redirect(front_end_url)
