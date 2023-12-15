@@ -153,9 +153,9 @@ const UploadPrev = (props) => {
             </Form.Item>
           </Form>
         }
-        {current === 1 && <>
+        {current === 1 && numActivities > 0 && <>
           <Paragraph>
-            {numActivities}{(numActivities === 200)? '+': ''} activities will be uploaded to UKC.
+            {numActivities}{(numActivities === 200)? '+': ''} {(numActivities > 1)? 'activities': 'activity'} will be uploaded to UKC.
           </Paragraph>
           {!data?.auto_upload && <>
             <Paragraph>
@@ -193,6 +193,14 @@ const UploadPrev = (props) => {
               Back
             </Button>
           </Space>
+        </>}
+        {current === 1 && numActivities === 0 && <>
+          <Paragraph>
+            No activities were found in the selected date range.
+          </Paragraph>
+          <Button onClick={() => setCurrent(0)}>
+            Back
+          </Button>
         </>}
         {current === 2 && <>
           <Paragraph>
