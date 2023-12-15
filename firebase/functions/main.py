@@ -92,12 +92,13 @@ def athlete(req: https_fn.Request) -> https_fn.Response:
 #############################
 
 @https_fn.on_request(
-        secrets=["STRAVA_CLIENT_ID"],
+        secrets=["STRAVA_CLIENT_ID","FRONT_END_URL"],
         region="europe-west2")
 def authorize_strava(req: https_fn.Request) -> https_fn.Response:
+    # FRONT_END_URL should be like https://project-id.web.app
     params = {
         "client_id": getenv("STRAVA_CLIENT_ID"),
-        "redirect_uri": "https://strava-ukc.web.app/api/verify_authorization",
+        "redirect_uri": getenv("FRONT_END_URL")+"/api/verify_authorization",
         "response_type": "code",
         "approval_prompt": "auto",
         "scope": "read,activity:read"
@@ -106,7 +107,7 @@ def authorize_strava(req: https_fn.Request) -> https_fn.Response:
     return redirect(url)
 
 @https_fn.on_request(
-        secrets=["STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET"],
+        secrets=["STRAVA_CLIENT_ID", "STRAVA_CLIENT_SECRET", "FRONT_END_URL"],
         region="europe-west2")
 def verify_authorization(request):
     code = request.args.get("code")
@@ -145,7 +146,7 @@ def verify_authorization(request):
     params= {
         'token': firebase_token_str
     }
-    front_end_url = "https://strava-ukc.web.app/completelogin?" + urllib.parse.urlencode(params)
+    front_end_url = getenv("FRONT_END_URL")+"/completelogin?" + urllib.parse.urlencode(params)
     return redirect(front_end_url)
 
 def updateAthleteInFirestore(athlete):
