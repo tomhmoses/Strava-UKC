@@ -278,7 +278,7 @@ def should_create_with_lease(transaction, activity_ref):
 def create_entry(firestore_client, data, uid, activity_ref, visibility, route):
     if should_create_with_lease(firestore_client.transaction(), activity_ref):
         return upload_entry_to_UKC(firestore_client, data, uid, visibility, route)
-    return 'error', 'Activity already being uploaded' #TODO: retry later
+    return 'error', 'Activity already being uploaded'
 
 def update_entry(firestore_client, data, uid, visibility, route):
     activity_id = data.get("object_id", data.get("id", None))

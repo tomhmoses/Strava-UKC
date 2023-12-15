@@ -6,7 +6,6 @@ import PropTypes from "prop-types";
 const { Header } = Layout;
 
 const AppHeader = (props) => {
-  // TODO: fix for when first page is not home
   const [current, setCurrent] = useState((window.location.href.includes('upload-previous'))? 'u' : 'h');
   const onClick = (e) => {
     setCurrent(e.key);

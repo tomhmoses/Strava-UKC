@@ -115,7 +115,7 @@ const UserHome = (props) => {
         </Paragraph>
         <Paragraph>
           <ul>
-            <li>You can trust this site with your UKC/UKH login detials (they dont have an API 😔) and public Strava Activities wil be uploaded and updated for you.</li>
+            <li>You can trust this site with your UKC/UKH login detials (they dont have an API yet...) and public Strava Activities wil be uploaded and updated for you.</li>
             <li>Or you can get an export of activties, ready to load into a local script that uploads them to UKC/UKH.</li>
           </ul>
         </Paragraph>

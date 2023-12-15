@@ -30,10 +30,6 @@ const app = initializeApp(firebaseConfig);
 const firestore = getFirestore(app);
 const functions = getFunctions(app, 'europe-west2');
 
-// TODO: implement useAuthState here and put nav in route element.
-
-
-
 function App() {
 
   const auth = getAuth();
