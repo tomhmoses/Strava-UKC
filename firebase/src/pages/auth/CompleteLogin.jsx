@@ -29,7 +29,6 @@ export default function CompleteLogin() {
     const auth = getAuth();
     signInWithCustomToken(auth, token)
       .then(() => {
-        window.history.pushState(null, "", window.location.href.split("?")[0]);
         navigate("/");
       })
       .catch((error) => {
