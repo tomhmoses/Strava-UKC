@@ -34,6 +34,7 @@ const UploadPrev = (props) => {
   const [end, setEnd] = useState(0);
 
   const [errorText, setErrorText] = useState('');
+  const [usingAPIKey, setUsingAPIKey] = useState(false);
 
   const onNext = async (values) => {
     setButtonLoading(true);
@@ -59,7 +60,21 @@ const UploadPrev = (props) => {
     const upload_activities = httpsCallable(props.functions, 'upload_previous_activities');
     const ukcUsername = loginForm.getFieldValue('ukcUsername');
     const ukcPassword = loginForm.getFieldValue('ukcPassword');
-    await upload_activities({after: start, before: end, ukcUsername: ukcUsername, ukcPassword: ukcPassword, numActivities: numActivities}).then((result) => {
+    const ukcAPIKey = loginForm.getFieldValue('ukcAPIKey');
+    const customURL = loginForm.getFieldValue('customURL');
+    const input = {
+      after: start,
+      before: end,
+      numActivities: numActivities,
+    };
+    if (ukcAPIKey) {
+      input.ukcAPIKey = ukcAPIKey;
+      input.customURL = customURL;
+    } else {
+      input.ukcUsername = ukcUsername;
+      input.ukcPassword = ukcPassword;
+    }
+    await upload_activities(input).then((result) => {
       // console.log(result.data);
       if (result.data.success) {
         if (result.data.status === 'complete') {
@@ -164,35 +179,60 @@ const UploadPrev = (props) => {
             <Form
               layout='vertical'
               form={loginForm}
+              onFinish={onConfirm}
             >
               <Form.Item 
                 label="UKC Email or Username"
                 name="ukcUsername"
                 rules={[
-                  { required: true, message: 'Please enter your UKC username.' },
+                  { required: !usingAPIKey, message: 'Please enter your UKC email or username.'}
                 ]}
               >
-                <Input />
+                <Input disabled={usingAPIKey} />
               </Form.Item>
               <Form.Item 
                 label="UKC Password"
                 name="ukcPassword"
                 rules={[
-                  { required: true, message: 'Please enter your UKC password.' },
+                  { required: !usingAPIKey, message: 'Please enter your UKC password.'}
                 ]}
               >
-                <Input.Password />
+                <Input.Password disabled={usingAPIKey} />
+              </Form.Item>
+              <Alert message="Work in progress... optionally provide an API key instead" type="warning" />
+              <Form.Item 
+                label="UKC API Key"
+                name="ukcAPIKey"
+              >
+                <Input.Password onChange={
+                  (e) => { 
+                    if (e.target.value) {
+                      setUsingAPIKey(true);
+                      // set fields to disabled
+                    } else {
+                      setUsingAPIKey(false);
+                    }
+                  }
+                } />
+              </Form.Item>
+              <Form.Item 
+                label="Optional Custom URL"
+                name="customURL"
+              >
+                <Input />
+              </Form.Item>
+              <Form.Item>
+                <Space direction="horizontal">
+                  <Button type="primary" htmlType="submit" loading={buttonLoading}>
+                    Confirm
+                  </Button>
+                  <Button htmlType="button" onClick={() => setCurrent(0)}>
+                    Back
+                  </Button>
+                </Space>
               </Form.Item>
             </Form>
           </>}
-          <Space direction="horizontal">
-            <Button type="primary" onClick={onConfirm} loading={buttonLoading}>
-              Confirm
-            </Button>
-            <Button onClick={() => setCurrent(0)}>
-              Back
-            </Button>
-          </Space>
         </>}
         {current === 1 && numActivities === 0 && <>
           <Paragraph>

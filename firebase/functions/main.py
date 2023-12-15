@@ -334,15 +334,18 @@ def upload_entry_to_UKC(firestore_client, data, uid, visibility='everyone', rout
         }
     # print('form_data', form_data)
     # first try with existing auth code
-    auth_code = get_UKC_auth_code(firestore_client, uid)
-    response = send_entry_to_UKC(auth_code, form_data)
+    apiKey, custom_url = get_UKC_API_key(firestore_client, uid)
+    auth_code = None
+    if apiKey is None:
+        auth_code = get_UKC_auth_code(firestore_client, uid)
+    response = send_entry_to_UKC(auth_code, form_data, apiKey, custom_url)
     error = ''
     if response.status_code == 200:
         # Extract the page title
         page_title = get_page_title(response)
 
         # Check if auth didn't work
-        if 'Login' in page_title:
+        if 'Login' in page_title and apiKey is None:
             logger.info("Login required. Obtaining a new auth code.")
 
             # Obtain a new auth code
@@ -432,6 +435,13 @@ def get_UKC_auth_code(firestore_client, uid):
         auth_code = get_new_UKC_auth_code(firestore_client, uid, auth["username"], auth["password"])
     return auth_code
 
+def get_UKC_API_key(firestore_client, uid):
+    # Check if the auth code file exists
+    athlete_ref = firestore_client.collection(u'users').document(str(uid))
+    auth_ref = athlete_ref.collection(u'private').document(u'UKC_auth')
+    auth = auth_ref.get().to_dict()
+    return auth.get("api_key", None), auth.get('custom_url', None)
+
 def get_new_UKC_auth_code(firestore_client, uid, username=None, password=None):
     athlete_ref = firestore_client.collection(u'users').document(str(uid))
     auth_ref = athlete_ref.collection(u'private').document(u'UKC_auth')
@@ -486,16 +496,21 @@ def get_new_UKC_auth_code(firestore_client, uid, username=None, password=None):
     logger.error("No ukcsid cookie found.")
     raise Exception("Login failed.")
 
-def send_entry_to_UKC(auth_code, form_data):
-    # Authentication cookie
-    auth_cookie = {'ukcsid': auth_code}
-
-    # Create a session object to persist cookies
+def send_entry_to_UKC(auth_code, form_data, apiKey=None, custom_url=None):
     session = requests.Session()
-    session.cookies.update(auth_cookie)
+
+    if apiKey:
+        form_data['api_key'] = apiKey
+    else:
+        # Authentication cookie
+        auth_cookie = {'ukcsid': auth_code}        
+        session.cookies.update(auth_cookie)
 
     # Send a POST request with the session
     url_submit = 'https://www.ukclimbing.com/logbook/adddiary.php'
+    if custom_url:
+        url_submit = custom_url
+    
     response = session.post(url_submit, data=form_data)
     # Save response html content to file
     # with open('submit_response.html', 'w') as file:
@@ -939,27 +954,40 @@ def upload_previous_activities(req: https_fn.CallableRequest) -> dict:
     # if not auto upload, check UKC username and password were provided and are correct
     user_ref = firestore_client.collection(u'users').document(str(req.auth.uid))
     if not "auto_upload" in user_data or not user_doc.get("auto_upload"):
-        # if not, check UKC username and password were provided
+        # if not, check ukcAPIKey or (UKC username and password) were provided
         username = req.data.get("ukcUsername")
         password = req.data.get("ukcPassword")
-        if username is None or password is None:
+        ukcAPIKey = req.data.get("ukcAPIKey")
+        if ukcAPIKey is None and (username is None or password is None):
             raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
-                                    message="The function must be called with ukcUsername and ukcPassword arguments if Auto Upload is not enabled.")
-        try:
-            auth_code = get_new_UKC_auth_code(firestore_client, req.auth.uid, username, password)
-        except Exception as e:
-            if str(e) == 'Wrong password entered.':
-                return {'success': False, 'error': 'Incorrect UKC username or password.'}
-            else:
-                raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INTERNAL,
-                                        message="Error setting up UKC auth.")
-        # save username and password in firestore
-        auth_ref = user_ref.collection(u'private').document(u'UKC_auth')
-        auth_ref.set({
-            u'username': username,
-            u'password': password,
-            u'auth_code': auth_code,
-        })
+                                    message="The function must be called with ukcAPIKey or (ukcUsername and ukcPassword) arguments if Auto Upload is not enabled.")
+        if ukcAPIKey is None:
+            try:
+                auth_code = get_new_UKC_auth_code(firestore_client, req.auth.uid, username, password)
+            except Exception as e:
+                if str(e) == 'Wrong password entered.':
+                    return {'success': False, 'error': 'Incorrect UKC username or password.'}
+                else:
+                    raise https_fn.HttpsError(code=https_fn.FunctionsErrorCode.INTERNAL,
+                                            message="Error setting up UKC auth.")
+            # save username and password in firestore
+            auth_ref = user_ref.collection(u'private').document(u'UKC_auth')
+            auth_ref.set({
+                u'username': username,
+                u'password': password,
+                u'auth_code': auth_code,
+            })
+        else:
+            # save api key in firestore
+            auth_ref = user_ref.collection(u'private').document(u'UKC_auth')
+            auth_ref.set({
+                u'api_key': ukcAPIKey,
+            })
+            custom_url = req.data.get("customURL")
+            if custom_url:
+                auth_ref.set({
+                    u'custom_url': custom_url,
+                }, merge=True)
 
     # if numActivities is passed and is more than 5, create a record in firestore to process this transaction
     if req.data.get("numActivities", 0) > 5:
