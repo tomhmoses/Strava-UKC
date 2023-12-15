@@ -34,7 +34,7 @@
         "source": "/api/addmessage",
         "function": {
           "functionId": "addmessage",
-          "region": "europe-west2"
+          "region": "europe-north1"
         }
       },
       {
