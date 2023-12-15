@@ -4,8 +4,9 @@ from firebase_functions import firestore_fn, https_fn#, logger <-- logger ins't 
 from flask import Response, json, redirect
 import urllib.parse
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
+from google.cloud import firestore
 
 
 # The Firebase Admin SDK to access Cloud Firestore.
@@ -208,13 +209,10 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
     if event.data is None:
         return
     data = event.data.after.to_dict()
-    # activity_id = data.get("object_id")
     if data.get("update_status") != "new":
         return
     
-    # set update_status to processing or wait if another update is processing still
-    # TODO: instead add updates to a queue for each activity with 5 second delay. Only add to the queue if it's empty
-    # 5 seconds allows other strava apps/updates to go first, before we push to UKC
+    # Set update_status to processing
     firestore_client: google.cloud.firestore.Client = firestore.client()
     update_ref = firestore_client.collection("activity-updates").document(event.document.split("/")[-1])
     update_ref.set({
@@ -249,18 +247,38 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
         u'update_message': error,
     }, merge=True)
 
+@firestore.transactional
+def should_create_with_lease(transaction, activity_ref):
+    snapshot = activity_ref.get(transaction=transaction)
+    now = datetime.now()
+    if snapshot.exists:
+        # if now is before lease, return False
+        timezone = snapshot.get("lease").tzinfo
+        timezone_now = now.replace(tzinfo=timezone)
+        if timezone_now < snapshot.get("lease"):
+            return False
+    
+    # lease is a time 20 seconds from current server time TODO: make this 5 seconds
+    lease = now + timedelta(seconds=5)
+    transaction.set(activity_ref, { u'lease': lease }, merge=True)
+    return True
 
-def create_entry(firestore_client, data, uid, visibility, route):
-    return upload_entry_to_UKC(firestore_client, data, uid, visibility, route)
+# this function is non indempotent, so we create a lease transaction for the activity
+def create_entry(firestore_client, data, uid, activity_ref, visibility, route):
+    if should_create_with_lease(firestore_client.transaction(), activity_ref):
+        return upload_entry_to_UKC(firestore_client, data, uid, visibility, route)
+    return 'error', 'Activity already being uploaded' #TODO: retry later
 
 def update_entry(firestore_client, data, uid, visibility, route):
     activity_id = data.get("object_id", data.get("id", None))
     activity_ref = firestore_client.collection(u'users').document(str(uid)).collection(u'activities').document(str(activity_id))
     activity_doc = activity_ref.get()
-    if not activity_doc.exists:
-        return create_entry(firestore_client, data, uid, visibility, route)
-    activity_data = activity_doc.to_dict()
-    UKC_id = activity_data.get("UKC_id")
+    UKC_id = None
+    if activity_doc.exists:
+        activity_data = activity_doc.to_dict()
+        UKC_id = activity_data.get("UKC_id", None)
+    if UKC_id is None:
+        return create_entry(firestore_client, data, uid, activity_ref, visibility, route)
     return upload_entry_to_UKC(firestore_client, data, uid, visibility, route, UKC_id)
 
 def delete_entry(firestore_client, data, uid):
