@@ -209,7 +209,10 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
     # Get the value of "original" if it exists.
     if event.data is None:
         return
-    data = event.data.after.to_dict()
+    data = (event.data.after.to_dict()
+              if event.data.after is not None else None)
+    if data is None:
+        return
     if data.get("update_status") != "new":
         return
     
