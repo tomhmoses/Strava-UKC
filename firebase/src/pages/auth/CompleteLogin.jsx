@@ -1,13 +1,19 @@
 import { getAuth, signInWithCustomToken } from "firebase/auth";
 import { Button, Result, Spin } from 'antd';
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 
 export default function CompleteLogin() {
 
   const navigate = useNavigate();
   const [error, setError] = useState(false)
+  const [loggedIn, setLoggedIn] = useState(false)
+  useEffect(() => {
+    if (!loggedIn) {
+      navigate('/');
+    }
+  }, [loggedIn, navigate])
 
   const queryString = window.location.search;
   const urlParams = new URLSearchParams(queryString);
@@ -29,7 +35,7 @@ export default function CompleteLogin() {
     const auth = getAuth();
     signInWithCustomToken(auth, token)
       .then(() => {
-        navigate("/");
+        setLoggedIn(true);
       })
       .catch((error) => {
         setError(error);
