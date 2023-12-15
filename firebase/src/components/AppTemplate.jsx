@@ -8,7 +8,7 @@ const { Content } = Layout;
 const AppTemplate = (props) => {
 
   return (
-    <Layout style={{ minHeight: "100vh", background: 'white'}}>
+    <Layout style={{ minHeight: "100dvh", background: 'white'}}>
       {props.user && 
         <AppHeader logout={props.logout}/>
       }
