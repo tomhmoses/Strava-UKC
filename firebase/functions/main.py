@@ -7,6 +7,7 @@ import requests
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 from google.cloud import firestore
+import time
 
 
 # The Firebase Admin SDK to access Cloud Firestore.
@@ -233,7 +234,7 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
     visibility = user_data.get("auto_upload_visibility", "everyone")
     route = user_data.get("gpx_upload", False)
     
-    # Check if aspect_type is "create" "update" or "delete"
+    # Check if aspect_type is "create"/"update" or "delete"
     if data.get("aspect_type") == "create" or data.get("aspect_type") == "update":
         status, error = update_entry(firestore_client, data, uid, visibility, route)
     elif data.get("aspect_type") == "delete":
@@ -247,6 +248,14 @@ def activity_trigger(event: firestore_fn.Event[firestore_fn.DocumentSnapshot | N
         u'update_message': error,
     }, merge=True)
 
+    # if error is 'Activity already being uploaded' then retry in 5 seconds
+    if error == 'Activity already being uploaded':
+        # TODO: dependant on cost of 6 seconds of compute, maybe change this to a cloud task
+        # but it's pretty rare that this will happen
+        time.sleep(6)
+        activity_trigger(event)
+
+
 @firestore.transactional
 def should_create_with_lease(transaction, activity_ref):
     snapshot = activity_ref.get(transaction=transaction)
@@ -257,8 +266,6 @@ def should_create_with_lease(transaction, activity_ref):
         timezone_now = now.replace(tzinfo=timezone)
         if timezone_now < snapshot.get("lease"):
             return False
-    
-    # lease is a time 20 seconds from current server time TODO: make this 5 seconds
     lease = now + timedelta(seconds=5)
     transaction.set(activity_ref, { u'lease': lease }, merge=True)
     return True
